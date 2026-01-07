@@ -12,10 +12,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
             case 'add':
-                $query = "INSERT INTO employees (employee_id, first_name, last_name, email, phone, department, designation, hire_date, salary) 
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                $stmt = $conn->prepare($query);
-                $stmt->execute([
+                // 1️⃣ Create login user
+                $hashedPassword = password_hash($_POST['password'], PASSWORD_DEFAULT);
+            
+                $userQuery = "INSERT INTO users (username, email, password, role)
+                              VALUES (?, ?, ?, 'employee')";
+                $userStmt = $conn->prepare($userQuery);
+                $userStmt->execute([
+                    $_POST['email'],   // username
+                    $_POST['email'],
+                    $hashedPassword
+                ]);
+            
+                $user_id = $conn->lastInsertId();
+            
+                // 2️⃣ Create employee profile
+                $empQuery = "INSERT INTO employees 
+                    (user_id, employee_id, first_name, last_name, email, phone, department, designation, hire_date, salary)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            
+                $empStmt = $conn->prepare($empQuery);
+                $empStmt->execute([
+                    $user_id,
                     $_POST['employee_id'],
                     $_POST['first_name'],
                     $_POST['last_name'],
@@ -26,9 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_POST['hire_date'],
                     $_POST['salary']
                 ]);
-                $success = "Employee added successfully!";
+            
+                $success = "Employee added & login created successfully!";
                 break;
-                
+            
             case 'update':
                 $query = "UPDATE employees SET first_name=?, last_name=?, email=?, phone=?, department=?, designation=?, salary=? WHERE id=?";
                 $stmt = $conn->prepare($query);
@@ -195,6 +214,11 @@ $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <input type="number" id="salary" name="salary" step="0.01">
                     </div>
                 </div>
+                    <div class="form-group">
+                        <label for="password">Login Password</label>
+                        <input type="password" id="password" name="password" required>
+                   </div>
+
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('addEmployeeModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Add Employee</button>
@@ -250,6 +274,12 @@ $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <input type="text" id="edit_designation" name="designation" required>
                         </div>
                     </div>
+                        <div class="form-group">
+                            <label for="password">Login Password</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+
+                     
                     <div class="form-group">
                         <label for="edit_salary">Salary</label>
                         <input type="number" id="edit_salary" name="salary" step="0.01">

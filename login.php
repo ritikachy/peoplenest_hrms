@@ -1,3 +1,4 @@
+
 <?php
 require_once 'includes/auth.php';
 
@@ -72,10 +73,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="login-demo">
                     <p><strong>Demo Credentials:</strong></p>
                     <p>Admin: admin / password</p>
-                    <p>Employee: john.doe / password</p>
+                    <p>Employee: john.doe/ password</p>
                 </div>
             </form>
         </div>
     </div>
 </body>
 </html>
+
+
+
+
+
+
