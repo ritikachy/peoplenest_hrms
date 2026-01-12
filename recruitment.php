@@ -1,43 +1,48 @@
 <?php
 require_once 'config/session.php';
 requireAdmin();
-
 require_once 'config/database.php';
 
 $database = new Database();
 $conn = $database->getConnection();
 
-// Handle form submissions
+// --- 1. HANDLE STATUS FILTERS (SRS: Talent Bank Logic) ---
+$statusFilter = isset($_GET['status']) ? $_GET['status'] : null;
+
+// --- 2. HANDLE FORM SUBMISSIONS ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
             case 'add':
-                $query = "INSERT INTO candidates (name, email, phone, position, experience_years, status, created_by) 
-                          VALUES (?, ?, ?, ?, ?, 'pending', ?)";
+                $resume_path = null;
+                // Handle File Upload
+                if (isset($_FILES['resume']) && $_FILES['resume']['error'] === 0) {
+                    $upload_dir = 'assets/uploads/resumes/';
+                    if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+                    
+                    $file_name = time() . '_' . $_FILES['resume']['name'];
+                    $target_file = $upload_dir . $file_name;
+                    if (move_uploaded_file($_FILES['resume']['tmp_name'], $target_file)) {
+                        $resume_path = $target_file;
+                    }
+                }
+            
+                $query = "INSERT INTO candidates (name, email, phone, position, experience_years, resume_path, status, created_by) 
+                          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)";
                 $stmt = $conn->prepare($query);
                 $stmt->execute([
-                    $_POST['name'],
-                    $_POST['email'],
-                    $_POST['phone'],
-                    $_POST['position'],
-                    $_POST['experience_years'],
-                    $_SESSION['user_id']
+                    $_POST['name'], $_POST['email'], $_POST['phone'], 
+                    $_POST['position'], $_POST['experience_years'], $resume_path, $_SESSION['user_id']
                 ]);
                 $success = "Candidate added successfully!";
                 break;
-                
             case 'update':
                 $query = "UPDATE candidates SET name=?, email=?, phone=?, position=?, experience_years=?, status=?, interview_date=? WHERE id=?";
                 $stmt = $conn->prepare($query);
                 $stmt->execute([
-                    $_POST['name'],
-                    $_POST['email'],
-                    $_POST['phone'],
-                    $_POST['position'],
-                    $_POST['experience_years'],
-                    $_POST['status'],
-                    $_POST['interview_date'] ?: null,
-                    $_POST['candidate_id']
+                    $_POST['name'], $_POST['email'], $_POST['phone'], $_POST['position'], 
+                    $_POST['experience_years'], $_POST['status'], 
+                    $_POST['interview_date'] ?: null, $_POST['candidate_id']
                 ]);
                 $success = "Candidate updated successfully!";
                 break;
@@ -53,10 +58,18 @@ if (isset($_GET['delete'])) {
     $success = "Candidate deleted successfully!";
 }
 
-// Get all candidates
-$query = "SELECT * FROM candidates ORDER BY created_at DESC";
-$stmt = $conn->prepare($query);
-$stmt->execute();
+// --- 3. FETCH DATA ---
+// --- 3. FETCH DATA (Updated) ---
+if ($statusFilter) {
+    $query = "SELECT * FROM candidates WHERE status = ? ORDER BY created_at DESC";
+    $stmt = $conn->prepare($query);
+    $stmt->execute([$statusFilter]);
+} else {
+    // Exclude 'hired' status so Sita doesn't show up in 'All Applicants'
+    $query = "SELECT * FROM candidates WHERE status != 'hired' ORDER BY created_at DESC";
+    $stmt = $conn->prepare($query);
+    $stmt->execute();
+}
 $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
@@ -67,6 +80,14 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recruitment - PeopleNest</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+        .filter-group { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .badge-pending { background: #ffc107; color: #000; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .badge-interview_scheduled { background: #17a2b8; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .badge-selected { background: #28a745; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .badge-rejected { background: #dc3545; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+    </style>
 </head>
 <body>
     <div class="dashboard-layout">
@@ -74,7 +95,7 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         <div class="main-content">
             <div class="top-bar">
-                <h1 class="page-title">Recruitment Management</h1>
+                <h1 class="page-title">Recruitment Pipeline</h1>
                 <div class="user-menu">
                     <button class="btn btn-primary" onclick="openModal('addCandidateModal')">Add Candidate</button>
                     <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
@@ -83,53 +104,67 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             <div class="content-area">
                 <?php if (isset($success)): ?>
-                    <div class="alert alert-success"><?php echo $success; ?></div>
+                    <div class="alert alert-success" style="padding:15px; background:#d4edda; color:#155724; border-radius:5px; margin-bottom:20px;"><?php echo $success; ?></div>
                 <?php endif; ?>
                 
+                <div class="filter-group">
+                    <a href="recruitment.php" class="btn btn-secondary btn-sm">All Applicants</a>
+                    <a href="recruitment.php?status=pending" class="btn btn-secondary btn-sm">New</a>
+                    <a href="recruitment.php?status=interview_scheduled" class="btn btn-secondary btn-sm">Interviews</a>
+                    <a href="recruitment.php?status=selected" class="btn btn-secondary btn-sm">Selected</a>
+                    <a href="recruitment.php?status=rejected" class="btn btn-danger btn-sm">Talent Bank (Rejected)</a>
+                </div>
+
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">All Candidates</h3>
-                    </div>
                     <div class="card-body">
                         <div class="table-container">
                             <table class="table">
                                 <thead>
                                     <tr>
                                         <th>Name</th>
-                                        <th>Email</th>
                                         <th>Position</th>
-                                        <th>Experience</th>
+                                        <th>Exp</th>
                                         <th>Status</th>
                                         <th>Interview Date</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($candidates as $candidate): ?>
-                                    <tr>
-                                        <td><strong><?php echo htmlspecialchars($candidate['name']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($candidate['email']); ?></td>
-                                        <td><?php echo htmlspecialchars($candidate['position']); ?></td>
-                                        <td><?php echo $candidate['experience_years']; ?> years</td>
-                                        <td>
-                                            <span class="badge badge-<?php 
-                                                echo $candidate['status'] === 'pending' ? 'warning' : 
-                                                    ($candidate['status'] === 'interview_scheduled' ? 'info' : 
-                                                    ($candidate['status'] === 'selected' ? 'success' : 'danger')); 
-                                            ?>">
-                                                <?php echo ucwords(str_replace('_', ' ', $candidate['status'])); ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <?php echo $candidate['interview_date'] ? date('M d, Y h:i A', strtotime($candidate['interview_date'])) : '-'; ?>
-                                        </td>
-                                        <td>
-                                            <button class="btn btn-secondary btn-sm" onclick="editCandidate(<?php echo htmlspecialchars(json_encode($candidate)); ?>)">Edit</button>
-                                            <a href="?delete=<?php echo $candidate['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</a>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
+    <?php foreach ($candidates as $candidate): ?>
+    <tr>
+        <td><strong><?php echo htmlspecialchars($candidate['name']); ?></strong></td>
+        <td><?php echo htmlspecialchars($candidate['position']); ?></td>
+        <td><?php echo $candidate['experience_years']; ?> Yrs</td>
+        <td>
+            <span class="badge-<?php echo $candidate['status']; ?>">
+                <?php echo ucwords(str_replace('_', ' ', $candidate['status'])); ?>
+            </span>
+        </td>
+        <td><?php echo $candidate['interview_date'] ? date('M d, h:i A', strtotime($candidate['interview_date'])) : '-'; ?></td>
+        <td>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <?php if (!empty($candidate['resume_path'])): ?>
+                    <a href="<?php echo htmlspecialchars($candidate['resume_path']); ?>" 
+                       target="_blank" 
+                       class="btn btn-info btn-sm" 
+                       style="background-color: #17a2b8; color: white; text-decoration: none; padding: 4px 8px; border-radius: 3px;"
+                       title="View Resume">
+                       📄 CV
+                    </a>
+                <?php else: ?>
+                    <span style="font-size: 10px; color: #999; width: 45px; text-align: center;">No CV</span>
+                <?php endif; ?>
+
+                <button class="btn btn-secondary btn-sm" onclick='editCandidate(<?php echo json_encode($candidate); ?>)'>Edit</button>
+                
+                <?php if($candidate['status'] == 'selected'): ?>
+                    <a href="employee-management.php?hire_id=<?php echo $candidate['id']; ?>" class="btn btn-success btn-sm">Hire Now</a>
+                <?php endif; ?>
+            </div>
+        </td>
+    </tr>
+    <?php endforeach; ?>
+</tbody>
                             </table>
                         </div>
                     </div>
@@ -138,88 +173,59 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
-    <!-- Add Candidate Modal -->
+    
     <div id="addCandidateModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">Add New Candidate</h3>
+                <h3>Add New Candidate</h3>
                 <button class="close" onclick="closeModal('addCandidateModal')">&times;</button>
             </div>
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="add">
                     <div class="form-row">
-                        <div class="form-group">
-                            <label for="name">Full Name</label>
-                            <input type="text" id="name" name="name" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="email">Email</label>
-                            <input type="email" id="email" name="email" required>
-                        </div>
+                        <div class="form-group"><label>Full Name</label><input type="text" name="name" required></div>
+                        <div class="form-group"><label>Email</label><input type="email" name="email" required></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group">
-                            <label for="phone">Phone</label>
-                            <input type="tel" id="phone" name="phone">
-                        </div>
-                        <div class="form-group">
-                            <label for="position">Position</label>
-                            <input type="text" id="position" name="position" required>
-                        </div>
+                        <div class="form-group"><label>Phone</label><input type="tel" name="phone"></div>
+                        <div class="form-group"><label>Position</label><input type="text" name="position" required></div>
                     </div>
+                    <div class="form-group"><label>Years of Experience</label><input type="number" name="experience_years" min="0"></div>
+                    
                     <div class="form-group">
-                        <label for="experience_years">Years of Experience</label>
-                        <input type="number" id="experience_years" name="experience_years" min="0" max="50">
+                        <label>Upload CV (PDF)</label>
+                        <input type="file" name="resume" accept=".pdf">
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('addCandidateModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add Candidate</button>
+                    <button type="submit" class="btn btn-primary">Save Candidate</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Edit Candidate Modal -->
     <div id="editCandidateModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">Edit Candidate</h3>
+                <h3>Edit Candidate / Update Status</h3>
                 <button class="close" onclick="closeModal('editCandidateModal')">&times;</button>
             </div>
             <form method="POST">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="update">
                     <input type="hidden" id="edit_candidate_id" name="candidate_id">
+                    
                     <div class="form-row">
-                        <div class="form-group">
-                            <label for="edit_name">Full Name</label>
-                            <input type="text" id="edit_name" name="name" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_email">Email</label>
-                            <input type="email" id="edit_email" name="email" required>
-                        </div>
+                        <div class="form-group"><label>Full Name</label><input type="text" id="edit_name" name="name" required></div>
+                        <div class="form-group"><label>Email</label><input type="email" id="edit_email" name="email" required></div>
                     </div>
+
                     <div class="form-row">
+                        <div class="form-group"><label>Position</label><input type="text" id="edit_position" name="position" required></div>
                         <div class="form-group">
-                            <label for="edit_phone">Phone</label>
-                            <input type="tel" id="edit_phone" name="phone">
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_position">Position</label>
-                            <input type="text" id="edit_position" name="position" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="edit_experience">Years of Experience</label>
-                            <input type="number" id="edit_experience" name="experience_years" min="0" max="50">
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_status">Status</label>
-                            <select id="edit_status" name="status" required>
+                            <label>Status</label>
+                            <select id="edit_status" name="status">
                                 <option value="pending">Pending</option>
                                 <option value="interview_scheduled">Interview Scheduled</option>
                                 <option value="selected">Selected</option>
@@ -227,19 +233,56 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             </select>
                         </div>
                     </div>
+
                     <div class="form-group">
-                        <label for="edit_interview_date">Interview Date & Time</label>
+                        <label>Interview Date & Time</label>
                         <input type="datetime-local" id="edit_interview_date" name="interview_date">
                     </div>
+
+                    <div class="form-group" id="cv_preview_container" style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px; display: none;">
+                        <label style="display:block; margin-bottom:5px;">Attached Resume:</label>
+                        <a id="edit_cv_link" href="#" target="_blank" class="btn btn-info btn-sm" style="background:#17a2b8; color:white; text-decoration:none;">📄 View PDF Resume</a>
+                    </div>
+
+                    <input type="hidden" id="edit_phone" name="phone">
+                    <input type="hidden" id="edit_experience" name="experience_years">
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('editCandidateModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Candidate</button>
+                    <button type="submit" class="btn btn-primary">Update Profile</button>
                 </div>
             </form>
         </div>
     </div>
 
     <script src="assets/js/script.js"></script>
+    <script>
+        function editCandidate(data) {
+            document.getElementById('edit_candidate_id').value = data.id;
+            document.getElementById('edit_name').value = data.name;
+            document.getElementById('edit_email').value = data.email;
+            document.getElementById('edit_position').value = data.position;
+            document.getElementById('edit_status').value = data.status;
+            document.getElementById('edit_phone').value = data.phone;
+            document.getElementById('edit_experience').value = data.experience_years;
+            
+            // Logic to show/hide CV link in modal
+            const cvContainer = document.getElementById('cv_preview_container');
+            const cvLink = document.getElementById('edit_cv_link');
+            
+            if (data.resume_path && data.resume_path !== "") {
+                cvContainer.style.display = 'block';
+                cvLink.href = data.resume_path;
+            } else {
+                cvContainer.style.display = 'none';
+            }
+            
+            if(data.interview_date) {
+                document.getElementById('edit_interview_date').value = data.interview_date.replace(" ", "T").substring(0, 16);
+            } else {
+                document.getElementById('edit_interview_date').value = "";
+            }
+            openModal('editCandidateModal');
+        }
+    </script>
 </body>
 </html>

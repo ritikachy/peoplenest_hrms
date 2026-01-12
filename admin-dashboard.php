@@ -43,6 +43,14 @@ $query = "SELECT lr.*, e.first_name, e.last_name, e.employee_id
 $stmt = $conn->prepare($query);
 $stmt->execute();
 $recent_leaves = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Fetch all employees for the directory list
+$query = "SELECT employee_id, first_name, last_name, email, department, designation 
+          FROM employees 
+          WHERE status = 'active' 
+          ORDER BY employee_id ASC";
+$stmt = $conn->prepare($query);
+$stmt->execute();
+$all_employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -135,7 +143,62 @@ $recent_leaves = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                 </div>
             </div>
+            <div class="card" style="margin-top: 25px;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px;">
+    <h3 class="card-title" style="margin: 0;">Staff Directory</h3>
+    <div class="search-box">
+        <input type="text" id="empSearch" placeholder="Search name, ID, or dept..." 
+               style="padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 250px; font-size: 14px;">
+    </div>
+</div>
+    <div class="card-body">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Designation</th>
+                        <th>Email</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($all_employees as $emp): ?>
+                    <tr>
+                        <td><strong><?php echo htmlspecialchars($emp['employee_id']); ?></strong></td>
+                        <td><?php echo htmlspecialchars($emp['first_name'] . ' ' . $emp['last_name']); ?></td>
+                        <td><span class="badge badge-info"><?php echo htmlspecialchars($emp['department']); ?></span></td>
+                        <td><?php echo htmlspecialchars($emp['designation']); ?></td>
+                        <td><?php echo htmlspecialchars($emp['email']); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
+</div>
+        </div>
+    </div>
+    <script>
+document.getElementById('empSearch').addEventListener('keyup', function() {
+    let filter = this.value.toLowerCase();
+    // Select only the rows in the Staff Directory table
+    let rows = document.querySelectorAll('.card:last-child tbody tr');
+
+    rows.forEach(row => {
+        let name = row.cells[1].textContent.toLowerCase();
+        let id = row.cells[0].textContent.toLowerCase();
+        let dept = row.cells[2].textContent.toLowerCase();
+        
+        // If the search text matches Name, ID, or Dept, show the row
+        if (name.includes(filter) || id.includes(filter) || dept.includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+});
+</script>
 </body>
 </html>

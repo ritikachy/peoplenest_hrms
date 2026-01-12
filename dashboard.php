@@ -13,6 +13,11 @@ $stmt = $conn->prepare($query);
 $stmt->execute([$_SESSION['user_id']]);
 $employee = $stmt->fetch(PDO::FETCH_ASSOC);
 
+
+if (!$employee) {
+    die("Employee not found. Please check your login session or database.");
+}
+
 // Get attendance summary for current month
 $query = "SELECT 
             COUNT(CASE WHEN status = 'present' THEN 1 END) as present_days,
