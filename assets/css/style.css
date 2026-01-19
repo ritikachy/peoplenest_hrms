@@ -307,7 +307,31 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-  
+  /* Icon container inside stat cards */
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.bg-purple-light { background: #e0e7ff; color: #6366f1; }
+.bg-green-light { background: #dcfce7; color: #22c55e; }
+.bg-red-light { background: #fee2e2; color: #ef4444; }
+.stat-card {
+  transition: all 0.3s ease;
+  border-left: none; /* Remove that old border */
+  border: 1px solid #e2e8f0;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+  border-color: #667eea;
+}
   /* Tables */
   .table-container {
     overflow-x: auto;
@@ -338,6 +362,14 @@
   .table tbody tr:hover {
     background-color: #f8fafc;
   }
+  .table td {
+    vertical-align: middle;
+    color: #4a5568;
+}
+
+.table tr:last-child td {
+    border-bottom: none;
+}
   
   /* Status Badges */
   .badge {
@@ -368,7 +400,21 @@
     background-color: #bee3f8;
     color: #2b6cb0;
   }
-  
+  /* Premium Soft Badges */
+.badge-success {
+  background-color: #d1fae5; /* Very light green */
+  color: #065f46;            /* Dark green text */
+}
+
+.badge-warning {
+  background-color: #fef3c7; /* Very light orange */
+  color: #92400e;            /* Dark orange text */
+}
+
+.badge-danger {
+  background-color: #fee2e2; /* Very light red */
+  color: #991b1b;            /* Dark red text */
+}
   /* Forms */
   .form-row {
     display: grid;

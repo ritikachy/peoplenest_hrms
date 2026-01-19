@@ -9,6 +9,15 @@ if (isLoggedIn()) {
     }
     exit();
 }
+
+// Connect to database to check recruitment status
+require_once 'config/database.php';
+$database = new Database();
+$conn = $database->getConnection();
+
+$status_query = "SELECT setting_value FROM site_settings WHERE setting_key = 'recruitment_status'";
+$status_stmt = $conn->query($status_query);
+$recruitment_open = ($status_stmt->fetchColumn() === 'open');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -24,6 +33,7 @@ if (isLoggedIn()) {
             --text-dark: #1a2e1c;
             --text-gray: #556b58;
             --white: #ffffff;
+            --disabled-gray: #9ca3af;
         }
 
         * {
@@ -112,9 +122,15 @@ if (isLoggedIn()) {
             text-decoration: none;
             font-weight: 600;
             transition: 0.3s;
+            border: none;
         }
 
-        .btn-filled:hover { background: #235d27; transform: translateY(-2px); }
+        .btn-filled:hover:not(.disabled) { background: #235d27; transform: translateY(-2px); }
+        
+        .btn-filled.disabled {
+            background: var(--disabled-gray);
+            cursor: not-allowed;
+        }
 
         /* Hero Section */
         .hero {
@@ -131,6 +147,11 @@ if (isLoggedIn()) {
             font-weight: 600;
             display: inline-block;
             margin-bottom: 25px;
+        }
+        
+        .trust-badge.closed {
+            background: #fee2e2;
+            color: #991b1b;
         }
 
         .hero h1 {
@@ -195,9 +216,21 @@ if (isLoggedIn()) {
             padding: 40px;
             font-size: 0.9rem;
         }
+        html {
+            scroll-behavior: smooth;
+        }
     </style>
 </head>
+
 <body>
+    
+    <?php if (isset($_GET['applied']) && $_GET['applied'] == 'success'): ?>
+        <div style="background: var(--light-green); color: var(--primary-green); padding: 15px; text-align: center; font-weight: 600; border-bottom: 2px solid #c8e6c9; position: relative; z-index: 1001;">
+            <i class="fas fa-check-circle"></i> Application received! Our HR team will review your CV shortly.
+            <a href="index.php" style="margin-left: 15px; color: var(--primary-green); text-decoration: none; font-size: 0.8rem; opacity: 0.7;">[Dismiss]</a>
+        </div>
+    <?php endif; ?>
+
     <div class="bg-shape"></div>
 
     <nav>
@@ -205,46 +238,70 @@ if (isLoggedIn()) {
             <i class="fas fa-leaf"></i> PeopleNest
         </div>
         <div class="nav-links">
-            <a href="#">Our Platform</a>
-            <a href="#">Features</a>
-            <a href="#">Pricing</a>
+            <a href="#features">Our Platform</a>
+            <a href="apply.php">Careers</a> 
             <a href="#">About Us</a>
         </div>
         <div class="nav-btns">
-            <a href="login.php" class="btn-outline">Log In</a>
-            <a href="login.php" class="btn-filled">Get Started</a>
+            <a href="login.php" class="btn-outline">Staff Login</a>
+            <?php if ($recruitment_open): ?>
+                <a href="apply.php" class="btn-filled">Apply Now</a>
+            <?php else: ?>
+                <span class="btn-filled disabled">Hiring Paused</span>
+            <?php endif; ?>
         </div>
     </nav>
 
-    <section class="hero">
-        <div class="trust-badge">Trusted by thousands of businesses globally</div>
-        <h1>The Intelligently Simple <br> HR Platform</h1>
-        <p>Manage people, not paperwork. Elevate your team with a platform built for the modern workforce.</p>
-        
-        <a href="login.php" class="btn-filled" style="padding: 15px 40px; font-size: 1.1rem;">Schedule a Free Demo</a>
-    </section>
-
-    <div class="feature-container">
-        <div class="feature-card">
-            <div class="icon-circle"><i class="fas fa-users-cog"></i></div>
-            <h3>Employee Management</h3>
-        </div>
-        <div class="feature-card">
-            <div class="icon-circle"><i class="fas fa-calendar-check"></i></div>
-            <h3>Time & Attendance</h3>
-        </div>
-        <div class="feature-card">
-            <div class="icon-circle"><i class="fas fa-umbrella-beach"></i></div>
-            <h3>Leave Management</h3>
-        </div>
-        <div class="feature-card">
-            <div class="icon-circle"><i class="fas fa-chart-line"></i></div>
-            <h3>Performance</h3>
-        </div>
+<section class="hero">
+    <div class="trust-badge <?php echo !$recruitment_open ? 'closed' : ''; ?>">
+        <?php echo $recruitment_open ? 'We are currently hiring for 5+ positions!' : 'Recruitment is currently paused'; ?>
     </div>
+    <h1>The Intelligently Simple <br> HR Platform</h1>
+    <p>Manage people, not paperwork. Join the team that's building the future of the modern workforce.</p>
+    
+    <div style="display: flex; justify-content: center; gap: 15px;">
+        <?php if ($recruitment_open): ?>
+            <a href="apply.php" class="btn-filled" style="padding: 15px 40px; font-size: 1.1rem;">Explore Open Roles</a>
+        <?php else: ?>
+            <button class="btn-filled disabled" style="padding: 15px 40px; font-size: 1.1rem;">No Current Vacancies</button>
+        <?php endif; ?>
+        <a href="login.php" class="btn-outline" style="padding: 15px 40px; font-size: 1.1rem; border-radius: 50px;">Staff Portal</a>
+    </div>
+</section>
+
+<div id="features" class="feature-container">
+    <div class="feature-card">
+        <div class="icon-circle"><i class="fas fa-users-cog"></i></div>
+        <h3>Employee Management</h3>
+    </div>
+    <div class="feature-card">
+        <div class="icon-circle"><i class="fas fa-calendar-check"></i></div>
+        <h3>Time & Attendance</h3>
+    </div>
+    <div class="feature-card">
+        <div class="icon-circle"><i class="fas fa-umbrella-beach"></i></div>
+        <h3>Leave Management</h3>
+    </div>
+    <div class="feature-card">
+        <div class="icon-circle"><i class="fas fa-chart-line"></i></div>
+        <h3>Performance</h3>
+    </div>
+</div>
+
+<section style="background: var(--light-green); padding: 80px 8%; text-align: center; margin: 40px 0;">
+    <h2 style="font-size: 2.5rem; color: var(--primary-green); margin-bottom: 20px;">Ready to grow with us?</h2>
+    <p style="color: var(--text-gray); font-size: 1.1rem; max-width: 600px; margin: 0 auto 30px;">
+        Whether you are looking for your next career move or a better way to manage your team, PeopleNest is here to help.
+    </p>
+    <?php if ($recruitment_open): ?>
+        <a href="apply.php" class="btn-filled" style="padding: 15px 40px; display: inline-block;">View All Openings</a>
+    <?php else: ?>
+        <span class="btn-filled disabled" style="padding: 15px 40px; display: inline-block;">Hiring Closed</span>
+    <?php endif; ?>
+</section>
 
     <footer>
-        <p>&copy; 2025 PeopleNest HRMS. All rights reserved.</p>
+        <p>&copy; 2026 PeopleNest HRMS. All rights reserved.</p>
     </footer>
 </body>
 </html>

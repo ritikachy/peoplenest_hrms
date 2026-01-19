@@ -5,6 +5,18 @@ require_once 'config/database.php';
 
 $database = new Database();
 $conn = $database->getConnection();
+// Fetch current status
+$status_stmt = $conn->query("SELECT setting_value FROM site_settings WHERE setting_key = 'recruitment_status'");
+$current_status = $status_stmt->fetchColumn();
+
+// Handle the button click
+if (isset($_POST['toggle_hiring'])) {
+    $new_status = ($current_status === 'open') ? 'closed' : 'open';
+    $update = $conn->prepare("UPDATE site_settings SET setting_value = ? WHERE setting_key = 'recruitment_status'");
+    $update->execute([$new_status]);
+    header("Location: recruitment.php"); // Refresh page
+    exit();
+}
 
 // --- 1. HANDLE STATUS FILTERS (SRS: Talent Bank Logic) ---
 $statusFilter = isset($_GET['status']) ? $_GET['status'] : null;
@@ -58,15 +70,29 @@ if (isset($_GET['delete'])) {
     $success = "Candidate deleted successfully!";
 }
 
-// --- 3. FETCH DATA ---
-// --- 3. FETCH DATA (Updated) ---
+// --- 3. FETCH DATA (Updated for Monthly Filter & Bridge Check) ---
+$monthFilter = isset($_GET['filter']) && $_GET['filter'] === 'this_month';
+
 if ($statusFilter) {
+    // 1. Show specific status (Pending, Selected, etc.)
     $query = "SELECT * FROM candidates WHERE status = ? ORDER BY created_at DESC";
     $stmt = $conn->prepare($query);
     $stmt->execute([$statusFilter]);
+} elseif ($monthFilter) {
+    // 2. TEACHER'S REQUEST: Show everyone who applied this month
+    $query = "SELECT * FROM candidates 
+              WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) 
+              AND YEAR(created_at) = YEAR(CURRENT_DATE()) 
+              ORDER BY created_at DESC";
+    $stmt = $conn->prepare($query);
+    $stmt->execute();
 } else {
-    // Exclude 'hired' status so Sita doesn't show up in 'All Applicants'
-    $query = "SELECT * FROM candidates WHERE status != 'hired' ORDER BY created_at DESC";
+    // 3. DEFAULT VIEW: Hide hired (via bridge) and hide rejected
+    $query = "SELECT c.* FROM candidates c 
+              LEFT JOIN candidate_employee ce ON c.id = ce.candidate_id 
+              WHERE ce.candidate_id IS NULL 
+              AND c.status != 'rejected' 
+              ORDER BY c.created_at DESC";
     $stmt = $conn->prepare($query);
     $stmt->execute();
 }
@@ -87,6 +113,15 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .badge-selected { background: #28a745; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
         .badge-rejected { background: #dc3545; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
         .btn-sm { padding: 5px 10px; font-size: 12px; }
+        /* Ensure the modal actually shows up when triggered */
+.modal { 
+    display: none; 
+    position: fixed; 
+    z-index: 1000; 
+    left: 0; top: 0; 
+    width: 100%; height: 100%; 
+    background-color: rgba(0,0,0,0.5); 
+}
     </style>
 </head>
 <body>
@@ -94,13 +129,19 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <?php include 'includes/admin-sidebar.php'; ?>
         
         <div class="main-content">
-            <div class="top-bar">
-                <h1 class="page-title">Recruitment Pipeline</h1>
-                <div class="user-menu">
-                    <button class="btn btn-primary" onclick="openModal('addCandidateModal')">Add Candidate</button>
-                    <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
-                </div>
-            </div>
+        <div class="top-bar">
+    <h1 class="page-title">Recruitment Pipeline</h1>
+    <div class="user-menu" style="display: flex; gap: 10px; align-items: center;">
+        <form method="POST" style="margin: 0;">
+            <button type="submit" name="toggle_hiring" class="btn <?php echo ($current_status === 'open' ? 'btn-danger' : 'btn-success'); ?> btn-sm" style="padding: 8px 15px;">
+                <?php echo ($current_status === 'open' ? 'Stop Applications' : 'Start Applications'); ?>
+            </button>
+        </form>
+
+        <button class="btn btn-primary" onclick="openModal('addCandidateModal')">Add Candidate</button>
+        <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
+    </div>
+</div>
             
             <div class="content-area">
                 <?php if (isset($success)): ?>
@@ -110,6 +151,9 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="filter-group">
                     <a href="recruitment.php" class="btn btn-secondary btn-sm">All Applicants</a>
                     <a href="recruitment.php?status=pending" class="btn btn-secondary btn-sm">New</a>
+                    <a href="recruitment.php?filter=this_month" class="btn btn-info btn-sm" style="background-color: #17a2b8; border: none;">
+                     Applied This Month
+                    </a>
                     <a href="recruitment.php?status=interview_scheduled" class="btn btn-secondary btn-sm">Interviews</a>
                     <a href="recruitment.php?status=selected" class="btn btn-secondary btn-sm">Selected</a>
                     <a href="recruitment.php?status=rejected" class="btn btn-danger btn-sm">Talent Bank (Rejected)</a>
@@ -142,25 +186,29 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </td>
         <td><?php echo $candidate['interview_date'] ? date('M d, h:i A', strtotime($candidate['interview_date'])) : '-'; ?></td>
         <td>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <?php if (!empty($candidate['resume_path'])): ?>
-                    <a href="<?php echo htmlspecialchars($candidate['resume_path']); ?>" 
-                       target="_blank" 
-                       class="btn btn-info btn-sm" 
-                       style="background-color: #17a2b8; color: white; text-decoration: none; padding: 4px 8px; border-radius: 3px;"
-                       title="View Resume">
-                       📄 CV
-                    </a>
-                <?php else: ?>
-                    <span style="font-size: 10px; color: #999; width: 45px; text-align: center;">No CV</span>
-                <?php endif; ?>
+        <div style="display: flex; gap: 8px; align-items: center;">
+    <?php if (!empty($candidate['resume_path'])): ?>
+        <a href="<?php echo htmlspecialchars($candidate['resume_path']); ?>" 
+           target="_blank" 
+           class="btn btn-info btn-sm" 
+           style="background-color: #17a2b8; color: white; text-decoration: none; padding: 4px 8px; border-radius: 3px;"
+           title="View Resume">
+           📄 CV
+        </a>
+    <?php else: ?>
+        <span style="font-size: 10px; color: #999; width: 45px; text-align: center;">No CV</span>
+    <?php endif; ?>
 
-                <button class="btn btn-secondary btn-sm" onclick='editCandidate(<?php echo json_encode($candidate); ?>)'>Edit</button>
-                
-                <?php if($candidate['status'] == 'selected'): ?>
-                    <a href="employee-management.php?hire_id=<?php echo $candidate['id']; ?>" class="btn btn-success btn-sm">Hire Now</a>
-                <?php endif; ?>
-            </div>
+    <button class="btn btn-secondary btn-sm" onclick='editCandidate(<?php echo json_encode($candidate); ?>)'>Edit</button>
+    
+    <?php if($candidate['status'] == 'selected'): ?>
+        <a href="employee-management.php?hire_id=<?php echo $candidate['id']; ?>" 
+           class="btn btn-success btn-sm" 
+           style="background-color: #28a745; color: white; text-decoration: none; padding: 4px 8px; border-radius: 3px;">
+           Hire Now
+        </a>
+    <?php endif; ?>
+</div>
         </td>
     </tr>
     <?php endforeach; ?>
@@ -172,7 +220,12 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
     </div>
-
+    <form method="POST" style="margin-bottom: 20px;">
+    <span>Hiring is currently: <strong><?php echo strtoupper($current_status); ?></strong></span>
+    <button type="submit" name="toggle_hiring" class="btn <?php echo ($current_status === 'open' ? 'btn-danger' : 'btn-success'); ?> btn-sm">
+        <?php echo ($current_status === 'open' ? 'Stop Applications' : 'Start Applications'); ?>
+    </button>
+</form>
     
     <div id="addCandidateModal" class="modal">
         <div class="modal-content">
@@ -256,33 +309,50 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <script src="assets/js/script.js"></script>
     <script>
-        function editCandidate(data) {
-            document.getElementById('edit_candidate_id').value = data.id;
-            document.getElementById('edit_name').value = data.name;
-            document.getElementById('edit_email').value = data.email;
-            document.getElementById('edit_position').value = data.position;
-            document.getElementById('edit_status').value = data.status;
-            document.getElementById('edit_phone').value = data.phone;
-            document.getElementById('edit_experience').value = data.experience_years;
-            
-            // Logic to show/hide CV link in modal
-            const cvContainer = document.getElementById('cv_preview_container');
-            const cvLink = document.getElementById('edit_cv_link');
-            
-            if (data.resume_path && data.resume_path !== "") {
-                cvContainer.style.display = 'block';
-                cvLink.href = data.resume_path;
-            } else {
-                cvContainer.style.display = 'none';
-            }
-            
-            if(data.interview_date) {
-                document.getElementById('edit_interview_date').value = data.interview_date.replace(" ", "T").substring(0, 16);
-            } else {
-                document.getElementById('edit_interview_date').value = "";
-            }
-            openModal('editCandidateModal');
+    // Essential functions to make the buttons work
+    function openModal(modalId) {
+        document.getElementById(modalId).style.display = "block";
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = "none";
+    }
+
+    function editCandidate(data) {
+        document.getElementById('edit_candidate_id').value = data.id;
+        document.getElementById('edit_name').value = data.name;
+        document.getElementById('edit_email').value = data.email;
+        document.getElementById('edit_position').value = data.position;
+        document.getElementById('edit_status').value = data.status;
+        document.getElementById('edit_phone').value = data.phone;
+        document.getElementById('edit_experience').value = data.experience_years;
+        
+        const cvContainer = document.getElementById('cv_preview_container');
+        const cvLink = document.getElementById('edit_cv_link');
+        
+        if (data.resume_path && data.resume_path !== "") {
+            cvContainer.style.display = 'block';
+            cvLink.href = data.resume_path;
+        } else {
+            cvContainer.style.display = 'none';
         }
-    </script>
+        
+        if(data.interview_date) {
+            document.getElementById('edit_interview_date').value = data.interview_date.replace(" ", "T").substring(0, 16);
+        } else {
+            document.getElementById('edit_interview_date').value = "";
+        }
+        
+        // Use the function defined above
+        openModal('editCandidateModal');
+    }
+
+    // Close modal if user clicks outside of the box
+    window.onclick = function(event) {
+        if (event.target.className === 'modal') {
+            event.target.style.display = "none";
+        }
+    }
+</script>
 </body>
 </html>

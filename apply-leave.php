@@ -1,6 +1,6 @@
 <?php 
 require_once 'config/session.php';
-requireEmployee();
+requireEmployee(); // Ensures only employees can access this page
 
 require_once 'config/database.php';
 
@@ -12,6 +12,9 @@ $query = "SELECT * FROM employees WHERE user_id = ?";
 $stmt = $conn->prepare($query);
 $stmt->execute([$_SESSION['user_id']]);
 $employee = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$success = "";
+$error = "";
 
 // Handle leave application
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -25,14 +28,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $end = new DateTime($endDate);
     $daysRequested = $start->diff($end)->days + 1;
     
-    $query = "INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, days_requested, reason) 
-              VALUES (?, ?, ?, ?, ?, ?)";
-    $stmt = $conn->prepare($query);
-    
-    if ($stmt->execute([$employee['id'], $leaveType, $startDate, $endDate, $daysRequested, $reason])) {
-        $success = "Leave application submitted successfully!";
-    } else {
-        $error = "Error submitting leave application.";
+    try {
+        // Start a transaction to ensure both the request and notification are saved
+        $conn->beginTransaction();
+
+        // 1. Insert into leave_requests
+        $query = "INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, days_requested, reason) 
+                  VALUES (?, ?, ?, ?, ?, ?)";
+        $stmt = $conn->prepare($query);
+        $stmt->execute([$employee['id'], $leaveType, $startDate, $endDate, $daysRequested, $reason]);
+
+        // 2. TRIGGER NOTIFICATION FOR ADMIN (User ID 1)
+        $admin_id = 1; 
+        $emp_name = $_SESSION['full_name'];
+        $notif_msg = "New " . ucfirst($leaveType) . " leave request from $emp_name ($daysRequested days).";
+        
+        $notifQuery = "INSERT INTO notifications (user_id, message, is_read, created_at) 
+                       VALUES (?, ?, 0, NOW())";
+        $notifStmt = $conn->prepare($notifQuery);
+        $notifStmt->execute([$admin_id, $notif_msg]);
+
+        // If everything is fine, commit the changes
+        $conn->commit();
+        $success = "Leave application submitted successfully! Admin has been notified.";
+        
+    } catch (Exception $e) {
+        // If something goes wrong, undo everything
+        $conn->rollBack();
+        $error = "Error submitting leave application: " . $e->getMessage();
     }
 }
 ?>
@@ -62,12 +85,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             
             <div class="content-area">
-                <?php if (isset($success)): ?>
-                    <div class="alert alert-success"><?php echo $success; ?></div>
+                <?php if ($success): ?>
+                    <div class="alert alert-success" style="padding: 15px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; border-radius: 5px; margin-bottom: 20px;">
+                        <?php echo $success; ?>
+                    </div>
                 <?php endif; ?>
                 
-                <?php if (isset($error)): ?>
-                    <div class="alert alert-error"><?php echo $error; ?></div>
+                <?php if ($error): ?>
+                    <div class="alert alert-error" style="padding: 15px; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 5px; margin-bottom: 20px;">
+                        <?php echo $error; ?>
+                    </div>
                 <?php endif; ?>
                 
                 <div class="card">
@@ -103,10 +130,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             <div class="form-group">
                                 <label for="reason">Reason for Leave</label>
-                                <textarea id="reason" name="reason" required placeholder="Please provide a detailed reason for your leave request..."></textarea>
+                                <textarea id="reason" name="reason" required placeholder="Please provide a detailed reason for your leave request..." style="width: 100%; min-height: 100px; padding: 10px; border-radius: 5px; border: 1px solid #ddd;"></textarea>
                             </div>
                             
-                            <div class="form-group">
+                            <div class="form-group" style="margin-top: 20px;">
                                 <button type="submit" class="btn btn-primary">Submit Leave Application</button>
                                 <a href="dashboard.php" class="btn btn-secondary">Cancel</a>
                             </div>
