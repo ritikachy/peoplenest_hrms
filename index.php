@@ -1,6 +1,7 @@
 <?php
 require_once 'includes/auth.php';
 
+// Redirect if already logged in based on role
 if (isLoggedIn()) {
     if ($_SESSION['role'] === 'admin') {
         header("Location: admin-dashboard.php");
@@ -10,298 +11,233 @@ if (isLoggedIn()) {
     exit();
 }
 
-// Connect to database to check recruitment status
 require_once 'config/database.php';
 $database = new Database();
 $conn = $database->getConnection();
 
-$status_query = "SELECT setting_value FROM site_settings WHERE setting_key = 'recruitment_status'";
-$status_stmt = $conn->query($status_query);
-$recruitment_open = ($status_stmt->fetchColumn() === 'open');
+// --- LOGIC: Fetch dynamic counts from Database ---
+try {
+    // Check recruitment status
+    $status_query = "SELECT setting_value FROM site_settings WHERE setting_key = 'recruitment_status'";
+    $status_stmt = $conn->query($status_query);
+    $recruitment_open = ($status_stmt->fetchColumn() === 'open');
+
+    // Stats
+    $emp_count = $conn->query("SELECT COUNT(*) FROM employees WHERE status = 'active'")->fetchColumn();
+    $pos_count = $conn->query("SELECT COUNT(DISTINCT position) FROM candidates WHERE status = 'pending'")->fetchColumn();
+    $dept_count = $conn->query("SELECT COUNT(DISTINCT department) FROM employees")->fetchColumn();
+} catch (PDOException $e) {
+    // Fallback if tables don't exist yet
+    $emp_count = 0; $pos_count = 0; $dept_count = 0; $recruitment_open = false;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PeopleNest | The Intelligently Simple HR Platform</title>
+    <title>PeopleNest | Intelligently Simple HR</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-green: #2d7a32;
-            --light-green: #e8f5e9;
-            --text-dark: #1a2e1c;
-            --text-gray: #556b58;
-            --white: #ffffff;
-            --disabled-gray: #9ca3af;
+            --pn-navy: #1a202c;       /* Dashboard Sidebar */
+            --pn-green: #2d7a32;      /* Brand Green */
+            --pn-light-bg: #f8fafc;   /* Dashboard Content BG */
+            --pn-border: #edf2f7;     /* Dashboard Borders */
+            --text-main: #2d3748;
+            --text-muted: #718096;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-
-        body {
-            background-color: var(--white);
-            color: var(--text-dark);
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* Hero Background Decorations */
-        .bg-shape {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 50%;
-            height: 80%;
-            background: radial-gradient(circle at top right, #e0f2f1 0%, transparent 70%);
-            z-index: -1;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background: white; color: var(--pn-navy); line-height: 1.6; }
 
         /* Navigation */
         nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 8%;
-            background: rgba(255, 255, 255, 0.9);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 8%; background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000;
+            border-bottom: 1px solid var(--pn-border);
         }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: var(--primary-green);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 30px;
-            align-items: center;
-        }
-
-        .nav-links a {
-            text-decoration: none;
-            color: var(--text-dark);
-            font-weight: 500;
-            font-size: 0.95rem;
-            transition: color 0.3s;
-        }
-
-        .nav-links a:hover { color: var(--primary-green); }
-
-        .nav-btns {
-            display: flex;
-            gap: 15px;
-        }
-
-        /* Buttons */
-        .btn-outline {
-            padding: 10px 25px;
-            border: 2px solid var(--primary-green);
-            color: var(--primary-green);
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: 0.3s;
-        }
-
-        .btn-filled {
-            padding: 10px 25px;
-            background: var(--primary-green);
-            color: white;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: 0.3s;
-            border: none;
-        }
-
-        .btn-filled:hover:not(.disabled) { background: #235d27; transform: translateY(-2px); }
+        .logo { font-size: 1.5rem; font-weight: 800; display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--pn-navy); }
+        .logo-box { background: var(--pn-navy); color: var(--pn-green); padding: 5px 8px; border-radius: 6px; }
         
-        .btn-filled.disabled {
-            background: var(--disabled-gray);
-            cursor: not-allowed;
-        }
+        .nav-links a { text-decoration: none; color: var(--pn-navy); font-weight: 600; margin: 0 15px; font-size: 0.9rem; transition: var(--transition); }
+        .nav-links a:hover { color: var(--pn-green); }
 
-        /* Hero Section */
-        .hero {
-            padding: 80px 8% 40px;
-            text-align: center;
-        }
+        .btn-login { border: 2px solid var(--pn-navy); padding: 8px 20px; border-radius: 8px; text-decoration: none; color: var(--pn-navy); font-weight: 700; font-size: 0.85rem; transition: var(--transition); }
+        .btn-login:hover { background: var(--pn-navy); color: white; }
 
-        .trust-badge {
-            background: var(--light-green);
-            padding: 8px 20px;
-            border-radius: 50px;
-            font-size: 0.85rem;
-            color: var(--primary-green);
-            font-weight: 600;
-            display: inline-block;
-            margin-bottom: 25px;
-        }
-        
-        .trust-badge.closed {
-            background: #fee2e2;
-            color: #991b1b;
-        }
+        /* Hero */
+        .hero { padding: 100px 8% 80px; text-align: center; background: radial-gradient(circle at top right, #f1f5f9, #ffffff); }
+        .badge { background: white; border: 1px solid var(--pn-border); color: var(--pn-green); padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; display: inline-block; }
+        .hero h1 { font-size: 4rem; font-weight: 800; letter-spacing: -2px; line-height: 1.1; margin-bottom: 25px; }
+        .hero p { color: var(--text-muted); font-size: 1.2rem; max-width: 700px; margin: 0 auto 40px; }
 
-        .hero h1 {
-            font-size: 3.5rem;
-            color: var(--primary-green);
-            margin-bottom: 20px;
-            line-height: 1.2;
-        }
+        .btn-primary { background: var(--pn-navy); color: white; padding: 15px 35px; border-radius: 10px; text-decoration: none; font-weight: 700; display: inline-block; transition: var(--transition); }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(26, 32, 44, 0.2); }
 
-        .hero p {
-            font-size: 1.2rem;
-            color: var(--text-gray);
-            max-width: 600px;
-            margin: 0 auto 40px;
+        /* Stats Section */
+        .stats-grid { 
+            display: grid; grid-template-columns: repeat(5, 1fr); 
+            background: white; margin: -50px 8% 0; padding: 40px;
+            border-radius: 20px; border: 1px solid var(--pn-border);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+            position: relative; z-index: 10;
         }
+        .stat-card { text-align: center; border-right: 1px solid var(--pn-border); }
+        .stat-card:last-child { border-right: none; }
+        .stat-num { display: block; font-size: 2.2rem; font-weight: 800; color: var(--pn-navy); }
+        .stat-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; }
 
-        /* Feature Grid */
-        .feature-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 30px;
-            padding: 40px 10%;
-            margin-bottom: 60px;
-        }
+        /* Features */
+        .features { padding: 100px 8%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
+        .f-card { padding: 40px; border-radius: 20px; border: 1px solid var(--pn-border); transition: var(--transition); }
+        .f-card:hover { border-color: var(--pn-green); transform: translateY(-10px); box-shadow: 0 15px 30px rgba(0,0,0,0.05); }
+        .f-card i { font-size: 2rem; color: var(--pn-green); margin-bottom: 20px; display: block; }
+        .f-card h3 { font-size: 1.3rem; margin-bottom: 10px; }
+        .f-card p { font-size: 0.9rem; color: var(--text-muted); }
 
-        .feature-card {
-            text-align: center;
-            padding: 20px;
-        }
+        /* Professional Footer */
+        footer { background: var(--pn-navy); color: #cbd5e0; padding: 80px 8% 30px; border-top: 5px solid var(--pn-green); }
+        .footer-main { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr; gap: 40px; margin-bottom: 50px; }
+        .footer-head { color: white; font-weight: 700; margin-bottom: 20px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+        .footer-links { list-style: none; }
+        .footer-links li { margin-bottom: 10px; }
+        .footer-links a { color: #cbd5e0; text-decoration: none; font-size: 0.9rem; transition: 0.3s; }
+        .footer-links a:hover { color: var(--pn-green); padding-left: 5px; }
 
-        .icon-circle {
-            width: 80px;
-            height: 80px;
-            background: var(--light-green);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 15px;
-            font-size: 1.8rem;
-            color: var(--primary-green);
-            border: 2px solid #c8e6c9;
-            transition: 0.3s;
-        }
+        .newsletter input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; color: white; width: 100%; margin-bottom: 10px; }
+        .newsletter button { background: var(--pn-green); color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-weight: 700; cursor: pointer; }
 
-        .feature-card:hover .icon-circle {
-            transform: scale(1.1);
-            background: var(--primary-green);
-            color: white;
-        }
-
-        .feature-card h3 {
-            font-size: 1rem;
-            color: var(--text-dark);
-        }
-
-        /* Footer */
-        footer {
-            background: #2c332e;
-            color: #bdc3bc;
-            text-align: center;
-            padding: 40px;
-            font-size: 0.9rem;
-        }
-        html {
-            scroll-behavior: smooth;
-        }
+        .footer-bottom { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 30px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; }
     </style>
 </head>
-
 <body>
-    
-    <?php if (isset($_GET['applied']) && $_GET['applied'] == 'success'): ?>
-        <div style="background: var(--light-green); color: var(--primary-green); padding: 15px; text-align: center; font-weight: 600; border-bottom: 2px solid #c8e6c9; position: relative; z-index: 1001;">
-            <i class="fas fa-check-circle"></i> Application received! Our HR team will review your CV shortly.
-            <a href="index.php" style="margin-left: 15px; color: var(--primary-green); text-decoration: none; font-size: 0.8rem; opacity: 0.7;">[Dismiss]</a>
-        </div>
-    <?php endif; ?>
 
-    <div class="bg-shape"></div>
-
-    <nav>
-        <div class="logo">
-            <i class="fas fa-leaf"></i> PeopleNest
-        </div>
-        <div class="nav-links">
-            <a href="#features">Our Platform</a>
-            <a href="apply.php">Careers</a> 
-            <a href="#">About Us</a>
-        </div>
-        <div class="nav-btns">
-            <a href="login.php" class="btn-outline">Staff Login</a>
-            <?php if ($recruitment_open): ?>
-                <a href="apply.php" class="btn-filled">Apply Now</a>
-            <?php else: ?>
-                <span class="btn-filled disabled">Hiring Paused</span>
-            <?php endif; ?>
-        </div>
-    </nav>
+<nav>
+    <a href="index.php" class="logo">
+        <div class="logo-box"><i class="fas fa-cubes"></i></div>
+        People<span style="color: var(--pn-green)">Nest</span>
+    </a>
+    <div class="nav-links">
+        <a href="#features">Platform</a>
+        <a href="apply.php">Careers</a>
+        <a href="login.php" class="btn-login">Staff Login</a>
+    </div>
+</nav>
 
 <section class="hero">
-    <div class="trust-badge <?php echo !$recruitment_open ? 'closed' : ''; ?>">
-        <?php echo $recruitment_open ? 'We are currently hiring for 5+ positions!' : 'Recruitment is currently paused'; ?>
+    <div class="badge">
+        <i class="fas fa-shield-check"></i> <?php echo $recruitment_open ? "Now Hiring: $pos_count Active Roles" : "Trusted by $emp_count Professionals"; ?>
     </div>
-    <h1>The Intelligently Simple <br> HR Platform</h1>
-    <p>Manage people, not paperwork. Join the team that's building the future of the modern workforce.</p>
-    
+    <h1>The Intelligently Simple <br> <span style="color: var(--pn-green)">HR Platform</span></h1>
+    <p>We’ve combined powerful performance insights with a clean interface to help you manage your team without the stress.</p>
     <div style="display: flex; justify-content: center; gap: 15px;">
-        <?php if ($recruitment_open): ?>
-            <a href="apply.php" class="btn-filled" style="padding: 15px 40px; font-size: 1.1rem;">Explore Open Roles</a>
-        <?php else: ?>
-            <button class="btn-filled disabled" style="padding: 15px 40px; font-size: 1.1rem;">No Current Vacancies</button>
-        <?php endif; ?>
-        <a href="login.php" class="btn-outline" style="padding: 15px 40px; font-size: 1.1rem; border-radius: 50px;">Staff Portal</a>
+        <a href="apply.php" class="btn-primary">Explore Careers <i class="fas fa-arrow-right" style="margin-left: 10px;"></i></a>
+        <a href="login.php" class="btn-login" style="padding: 14px 30px;">Request Demo</a>
     </div>
 </section>
 
-<div id="features" class="feature-container">
-    <div class="feature-card">
-        <div class="icon-circle"><i class="fas fa-users-cog"></i></div>
-        <h3>Employee Management</h3>
+<section class="stats-grid">
+    <div class="stat-card">
+        <span class="stat-num"><?php echo $emp_count; ?></span>
+        <span class="stat-lbl">Active Staff</span>
     </div>
-    <div class="feature-card">
-        <div class="icon-circle"><i class="fas fa-calendar-check"></i></div>
-        <h3>Time & Attendance</h3>
+    <div class="stat-card">
+        <span class="stat-num"><?php echo $pos_count; ?></span>
+        <span class="stat-lbl">Open Positions</span>
     </div>
-    <div class="feature-card">
-        <div class="icon-circle"><i class="fas fa-umbrella-beach"></i></div>
-        <h3>Leave Management</h3>
+    <div class="stat-card">
+        <span class="stat-num" style="color: var(--pn-green)">99.9%</span>
+        <span class="stat-lbl">Reliability</span>
     </div>
-    <div class="feature-card">
-        <div class="icon-circle"><i class="fas fa-chart-line"></i></div>
-        <h3>Performance</h3>
+    <div class="stat-card">
+        <span class="stat-num">24/7</span>
+        <span class="stat-lbl">Access</span>
     </div>
-</div>
-
-<section style="background: var(--light-green); padding: 80px 8%; text-align: center; margin: 40px 0;">
-    <h2 style="font-size: 2.5rem; color: var(--primary-green); margin-bottom: 20px;">Ready to grow with us?</h2>
-    <p style="color: var(--text-gray); font-size: 1.1rem; max-width: 600px; margin: 0 auto 30px;">
-        Whether you are looking for your next career move or a better way to manage your team, PeopleNest is here to help.
-    </p>
-    <?php if ($recruitment_open): ?>
-        <a href="apply.php" class="btn-filled" style="padding: 15px 40px; display: inline-block;">View All Openings</a>
-    <?php else: ?>
-        <span class="btn-filled disabled" style="padding: 15px 40px; display: inline-block;">Hiring Closed</span>
-    <?php endif; ?>
+    <div class="stat-card">
+        <span class="stat-num"><?php echo $dept_count; ?></span>
+        <span class="stat-lbl">Departments</span>
+    </div>
 </section>
 
-    <footer>
-        <p>&copy; 2026 PeopleNest HRMS. All rights reserved.</p>
-    </footer>
+<section class="features" id="features">
+    <div class="f-card">
+        <i class="fas fa-id-badge"></i>
+        <h3>Unified Profiles</h3>
+        <p>A single source of truth for all employee data, from documents to performance history.</p>
+    </div>
+    <div class="f-card">
+        <i class="fas fa-calendar-alt"></i>
+        <h3>Smart Attendance</h3>
+        <p>Automated clock-ins and leave management that syncs directly with your payroll logic.</p>
+    </div>
+    <div class="f-card">
+        <i class="fas fa-chart-line"></i>
+        <h3>Growth Analytics</h3>
+        <p>Visual reports that help you understand turnover, diversity, and departmental growth.</p>
+    </div>
+</section>
+
+<footer>
+    <div class="footer-main">
+        <div class="footer-col">
+            <div class="logo" style="color: white; margin-bottom: 20px;">
+                <div class="logo-box" style="background: var(--pn-green); color: var(--pn-navy);"><i class="fas fa-cubes"></i></div>
+                PeopleNest
+            </div>
+            <p style="font-size: 0.85rem; line-height: 1.6;">Empowering organizations with intelligent HR tools to build better workplace cultures.</p>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <a href="#"><i class="fab fa-linkedin" style="font-size: 1.2rem;"></i></a>
+                <a href="#"><i class="fab fa-twitter" style="font-size: 1.2rem;"></i></a>
+            </div>
+        </div>
+
+        <div class="footer-col">
+            <h4 class="footer-head">Platform</h4>
+            <ul class="footer-links">
+                <li><a href="login.php">Admin Login</a></li>
+                <li><a href="login.php">Employee Portal</a></li>
+                <li><a href="#">Self-Service</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-col">
+            <h4 class="footer-head">Company</h4>
+            <ul class="footer-links">
+                <li><a href="apply.php">About Us</a></li>
+                <li><a href="apply.php">Careers</a></li>
+                <li><a href="#">Privacy</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-col">
+            <h4 class="footer-head">Support</h4>
+            <ul class="footer-links">
+                <li><a href="#">Help Center</a></li>
+                <li><a href="#">Security</a></li>
+                <li><span style="color: var(--pn-green); font-size: 0.8rem;"><i class="fas fa-circle" style="font-size: 0.5rem;"></i> System Live</span></li>
+            </ul>
+        </div>
+
+        <div class="footer-col newsletter">
+            <h4 class="footer-head">Stay Updated</h4>
+            <input type="email" placeholder="Work email address">
+            <button>Subscribe</button>
+        </div>
+    </div>
+
+    <div class="footer-bottom">
+        <p>&copy; 2026 PeopleNest HRMS. Crafted for Excellence.</p>
+        <div style="display: flex; gap: 20px; opacity: 0.5;">
+            <i class="fab fa-aws" title="Hosted on AWS"></i>
+            <i class="fas fa-shield-alt" title="SSL Secured"></i>
+            <i class="fab fa-stripe" title="Secure Payments"></i>
+        </div>
+    </div>
+</footer>
+
 </body>
 </html>
