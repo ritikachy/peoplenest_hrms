@@ -146,7 +146,7 @@ $dept_counts = array_column($dept_results, 'count');
                     <h1 class="page-title" style="margin: 0;">Dashboard Overview</h1>
                     <div class="user-menu" style="display: flex; align-items: center; gap: 15px;">
                         <div class="user-info" style="text-align: right;">
-                            <div class="user-name" style="font-weight: bold;"><?php echo htmlspecialchars($_SESSION['username']); ?></div>
+                        <div class="user-name" style="font-weight: bold;"><?php echo htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['emp_id']); ?></div>
                             <div class="user-role" style="font-size: 12px; color: #718096;">Administrator</div>
                         </div>
                         <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>

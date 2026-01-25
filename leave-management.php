@@ -9,7 +9,7 @@ $conn = $database->getConnection();
 $success = "";
 $error = "";
 
-// --- NEW: FETCH UNREAD NOTIFICATIONS COUNT FOR TOP BAR ---
+// --- FETCH UNREAD NOTIFICATIONS ---
 $notifCountQuery = "SELECT COUNT(*) as unread FROM notifications WHERE user_id = ? AND is_read = 0";
 $notifCountStmt = $conn->prepare($notifCountQuery);
 $notifCountStmt->execute([$_SESSION['user_id']]);
@@ -21,56 +21,63 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
     $action = $_GET['action'];
     
     if ($action === 'approve') {
-        $checkQuery = "SELECT lr.*, e.leave_balance, e.id as emp_db_id, e.user_id as target_user_id 
-                      FROM leave_requests lr 
-                      JOIN employees e ON lr.employee_id = e.id 
-                      WHERE lr.id = ?";
+        // Updated Query: Get all specific balance columns
+        $checkQuery = "SELECT lr.*, e.id as emp_db_id, e.user_id as target_user_id,
+                              e.sick_balance, e.casual_balance, e.annual_balance, 
+                              e.maternity_balance, e.emergency_balance
+                       FROM leave_requests lr 
+                       JOIN employees e ON lr.employee_id = e.id 
+                       WHERE lr.id = ?";
         $checkStmt = $conn->prepare($checkQuery);
         $checkStmt->execute([$leaveId]);
         $data = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
         if ($data) {
-            if ($data['leave_balance'] >= $data['days_requested']) {
+            // Determine which balance column to use based on request type
+            $type = strtolower($data['leave_type']);
+            $balanceColumn = $type . "_balance"; 
+            $currentBalance = $data[$balanceColumn];
+
+            if ($currentBalance >= $data['days_requested']) {
                 try {
                     $conn->beginTransaction();
                     
-                    // Update Status
+                    // A. Update Leave Request Status
                     $query = "UPDATE leave_requests SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE id = ?";
                     $stmt = $conn->prepare($query);
                     $stmt->execute([$_SESSION['user_id'], $leaveId]);
 
-                    // Deduct Balance
-                    $updateBal = "UPDATE employees SET leave_balance = leave_balance - ? WHERE id = ?";
+                    // B. Deduct from the CORRECT Balance Column (Dynamic)
+                    $updateBal = "UPDATE employees SET $balanceColumn = $balanceColumn - ? WHERE id = ?";
                     $stmtBal = $conn->prepare($updateBal);
                     $stmtBal->execute([$data['days_requested'], $data['emp_db_id']]);
 
-                    // INSERT NOTIFICATION
-                    $notifMsg = "Your leave request (" . $data['leave_type'] . ") from " . $data['start_date'] . " has been APPROVED. 🎉";
+                    // C. Notify Employee
+                    $notifMsg = "Your " . ucfirst($type) . " leave request from " . $data['start_date'] . " has been APPROVED. 🎉";
                     $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, message) VALUES (?, ?)");
                     $notifStmt->execute([$data['target_user_id'], $notifMsg]);
 
-                    // Sync Attendance
+                    // D. Sync Attendance (Mark days as 'leave')
                     $start = new DateTime($data['start_date']);
                     $end = new DateTime($data['end_date']);
                     $end->modify('+1 day'); 
                     $period = new DatePeriod($start, new DateInterval('P1D'), $end);
 
-                    $attnQuery = "INSERT INTO attendance (employee_id, date, status) VALUES (?, ?, 'On Leave') 
-                                 ON DUPLICATE KEY UPDATE status = 'On Leave'";
+                    $attnQuery = "INSERT INTO attendance (employee_id, date, status) VALUES (?, ?, 'leave') 
+                                  ON DUPLICATE KEY UPDATE status = 'leave'";
                     $attnStmt = $conn->prepare($attnQuery);
-
                     foreach ($period as $dt) {
                         $attnStmt->execute([$data['emp_db_id'], $dt->format('Y-m-d')]);
                     }
 
                     $conn->commit();
-                    $success = "Leave approved! Employee notified.";
+                    $success = "Leave approved and balance deducted from " . ucfirst($type) . "!";
                 } catch (Exception $e) {
                     $conn->rollBack();
                     $error = "Transaction failed: " . $e->getMessage();
                 }
             } else {
-                $error = "Insufficient balance!";
+                $error = "Insufficient " . ucfirst($type) . " balance! (Available: $currentBalance)";
             }
         }
     } elseif ($action === 'reject') {
@@ -84,7 +91,6 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
             $stmt = $conn->prepare($query);
             $stmt->execute([$_SESSION['user_id'], $reason, $leaveId]);
 
-            // INSERT REJECTION NOTIFICATION
             $notifMsg = "Your leave request for " . $reqData['start_date'] . " was rejected. Reason: " . $reason;
             $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, message) VALUES (?, ?)");
             $notifStmt->execute([$reqData['user_id'], $notifMsg]);
@@ -94,8 +100,10 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
     }
 }
 
-// --- 2. FETCH DATA FOR TABLE ---
-$query = "SELECT lr.*, e.first_name, e.last_name, e.employee_id as emp_code, e.leave_balance, u.username as approved_by_name
+// --- 2. FETCH DATA FOR TABLE (Updated to show all balances) ---
+$query = "SELECT lr.*, e.first_name, e.last_name, e.employee_id as emp_code, 
+                 e.sick_balance, e.casual_balance, e.annual_balance, e.maternity_balance, e.emergency_balance,
+                 u.username as approved_by_name
           FROM leave_requests lr 
           JOIN employees e ON lr.employee_id = e.id 
           LEFT JOIN users u ON lr.approved_by = u.id
@@ -114,10 +122,11 @@ $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <style>
         .notif-badge { background: #ef4444; color: white; padding: 2px 6px; border-radius: 50%; font-size: 10px; position: absolute; top: -5px; right: -5px; }
         .btn-notif { position: relative; margin-right: 15px; text-decoration: none; font-size: 1.2em; }
-        .balance-tag { background: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; }
+        .balance-grid { font-size: 0.75em; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+        .balance-tag { background: #f3f4f6; padding: 1px 4px; border-radius: 3px; border: 1px solid #ddd; }
         .alert { padding: 15px; margin-bottom: 20px; border-radius: 4px; }
-        .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-        .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .alert-success { background: #dcfce7; color: #166534; }
+        .alert-danger { background: #fee2e2; color: #991b1b; }
     </style>
 </head>
 <body>
@@ -127,14 +136,8 @@ $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="main-content">
             <div class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
                 <h1 class="page-title">Leave Management</h1>
-                
                 <div class="user-menu" style="display: flex; align-items: center;">
-                    <a href="notifications.php" class="btn-notif">
-                        🔔
-                        <?php if ($unreadCount > 0): ?>
-                            <span class="notif-badge"><?php echo $unreadCount; ?></span>
-                        <?php endif; ?>
-                    </a>
+                    <a href="notifications.php" class="btn-notif">🔔<?php if ($unreadCount > 0): ?><span class="notif-badge"><?php echo $unreadCount; ?></span><?php endif; ?></a>
                     <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
                 </div>
             </div>
@@ -144,7 +147,6 @@ $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php if ($error): ?> <div class="alert alert-danger"><?php echo $error; ?></div> <?php endif; ?>
 
                 <div class="card">
-                    <div class="card-header"><h3 class="card-title">All Leave Requests</h3></div>
                     <div class="card-body">
                         <table class="table">
                             <thead>
@@ -153,7 +155,7 @@ $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <th>Type</th>
                                     <th>Duration</th>
                                     <th>Days</th>
-                                    <th>Balance</th>
+                                    <th>Current Balances</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -165,10 +167,17 @@ $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                         <strong><?php echo htmlspecialchars($leave['first_name'] . ' ' . $leave['last_name']); ?></strong><br>
                                         <small><?php echo htmlspecialchars($leave['emp_code']); ?></small>
                                     </td>
-                                    <td><?php echo ucfirst($leave['leave_type']); ?></td>
+                                    <td><span class="badge"><?php echo ucfirst($leave['leave_type']); ?></span></td>
                                     <td><small><?php echo $leave['start_date']; ?> to <?php echo $leave['end_date']; ?></small></td>
                                     <td><?php echo $leave['days_requested']; ?></td>
-                                    <td><span class="balance-tag"><?php echo $leave['leave_balance']; ?> Left</span></td>
+                                    <td>
+                                        <div class="balance-grid">
+                                            <span class="balance-tag">S: <?php echo $leave['sick_balance']; ?></span>
+                                            <span class="balance-tag">C: <?php echo $leave['casual_balance']; ?></span>
+                                            <span class="balance-tag">A: <?php echo $leave['annual_balance']; ?></span>
+                                            <span class="balance-tag">E: <?php echo $leave['emergency_balance']; ?></span>
+                                        </div>
+                                    </td>
                                     <td>
                                         <span class="badge badge-<?php echo $leave['status'] === 'pending' ? 'warning' : ($leave['status'] === 'approved' ? 'success' : 'danger'); ?>">
                                             <?php echo ucfirst($leave['status']); ?>
@@ -176,7 +185,7 @@ $leaveRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     </td>
                                     <td>
                                         <?php if ($leave['status'] === 'pending'): ?>
-                                            <a href="?action=approve&id=<?php echo $leave['id']; ?>" class="btn btn-success btn-sm" onclick="return confirm('Approve & sync attendance?')">Approve</a>
+                                            <a href="?action=approve&id=<?php echo $leave['id']; ?>" class="btn btn-success btn-sm" onclick="return confirm('Approve & deduct balance?')">Approve</a>
                                             <button class="btn btn-danger btn-sm" onclick="rejectLeave(<?php echo $leave['id']; ?>)">Reject</button>
                                         <?php else: ?>
                                             <small>By: <?php echo htmlspecialchars($leave['approved_by_name'] ?? 'System'); ?></small>

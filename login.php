@@ -15,11 +15,10 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $auth = new Auth();
     $emp_id = $_POST['emp_id'] ?? '';
-    $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
     
-    // Core logic: Attempt login through your existing Auth class
-    if ($auth->login($username, $password, $emp_id)) {
+    // UPDATED: Logic now only passes two parameters to match your new Auth class
+    if ($auth->login($emp_id, $password)) { 
         if ($_SESSION['role'] === 'admin') {
             header('Location: admin-dashboard.php');
         } else {
@@ -27,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         exit();
     } else {
-        $error = 'Invalid credentials provided. Please try again.';
+        $error = 'Invalid Employee ID or Password. Please try again.';
     }
 }
 ?>
@@ -42,9 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --pn-navy: #1a202c;       /* Matches Dashboard Sidebar */
-            --pn-green: #2d7a32;      /* Brand Green */
-            --pn-bg: #f8fafc;         /* Light Gray BG */
+            --pn-navy: #1a202c;
+            --pn-green: #2d7a32;
+            --pn-bg: #f8fafc;
             --pn-border: #edf2f7;
             --text-main: #2d3748;
             --text-muted: #718096;
@@ -53,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
 
         body {
-            background: var(--pn-navy); /* Dark background makes the white card pop */
+            background: var(--pn-navy);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -70,7 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
-        /* Branding */
         .brand-header { text-align: center; margin-bottom: 30px; }
         .logo { 
             font-size: 1.8rem; font-weight: 800; color: var(--pn-navy); 
@@ -79,7 +77,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         .logo-box { background: var(--pn-navy); color: var(--pn-green); padding: 5px 8px; border-radius: 8px; }
 
-        /* Role Switcher (Matching Dashboard Tabs) */
         .login-tabs {
             display: flex;
             background: var(--pn-bg);
@@ -98,7 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
 
-        /* Form Elements */
         .form-group { margin-bottom: 20px; text-align: left; }
         .form-group label { 
             display: block; font-size: 0.85rem; font-weight: 700; 
@@ -162,11 +158,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="form-group">
-            <label>Username or Email</label>
-            <input type="text" id="username" name="username" placeholder="name@peoplenest.com" required>
-        </div>
-        
-        <div class="form-group">
             <label>Password</label>
             <input type="password" id="password" name="password" placeholder="••••••••" required>
         </div>
@@ -176,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="demo-hint" id="demoHint">
         <strong>Employee Access:</strong><br>
-        Emp105 / ritikachy002@peoplenest.com
+        ID: Emp105 / Pass: user123
     </div>
 
     <p style="margin-top: 25px; font-size: 0.8rem; color: var(--text-muted); text-align: center;">
@@ -186,28 +177,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
 function switchLogin(role, btn) {
-    // UI: Toggle Active Class
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
 
     const empLabel = document.getElementById('empLabel');
     const empInput = document.getElementById('emp_id');
-    const userInput = document.getElementById('username');
     const demoHint = document.getElementById('demoHint');
 
     if (role === 'admin') {
         empLabel.innerText = "Admin ID";
-        empInput.value = 'EMP001'; // Fills demo data for your admin
-        userInput.value = 'admin';
-        demoHint.innerHTML = "<strong>Administrator Access:</strong><br>EMP001 / admin / password";
+        empInput.value = 'EMP001'; 
+        demoHint.innerHTML = "<strong>Administrator Access:</strong><br>ID: EMP001 / Pass: admin123";
         demoHint.style.background = "#eff6ff";
         demoHint.style.borderColor = "#3b82f6";
         demoHint.style.color = "#1e40af";
     } else {
         empLabel.innerText = "Employee ID";
         empInput.value = ''; 
-        userInput.value = '';
-        demoHint.innerHTML = "<strong>Employee Access:</strong><br>Emp105 / ritikachy002@peoplenest.com";
+        demoHint.innerHTML = "<strong>Employee Access:</strong><br>ID: Emp105 / Pass: user123";
         demoHint.style.background = "#f0fdf4";
         demoHint.style.borderColor = "var(--pn-green)";
         demoHint.style.color = "#166534";

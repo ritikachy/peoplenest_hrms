@@ -10,33 +10,37 @@ class Auth {
         $this->conn = $database->getConnection();
     }
     
-    // Now requires three parameters
-    public function login($username, $password, $emp_id) {
-        // Query checks BOTH (username/email) AND the specific Employee ID
+    /**
+     * Updated login function: Only requires Employee ID and Password.
+     * This follows the teacher's suggestion to remove the redundant username field.
+     */
+    public function login($emp_id, $password) {
+        // Updated Query: Removed checks for username and email. 
+        // Only filters by the unique emp_id.
         $query = "SELECT u.*, e.id as employee_id, e.first_name, e.last_name 
                   FROM users u 
                   LEFT JOIN employees e ON u.emp_id = e.employee_id 
-                  WHERE (u.username = ? OR u.email = ?) AND u.emp_id = ?";
+                  WHERE u.emp_id = ?";
         
         $stmt = $this->conn->prepare($query);
-        // We pass the $username twice (for the OR check) and $emp_id once
-        $stmt->execute([$username, $username, $emp_id]);
+        // Execute only with the Employee ID
+        $stmt->execute([$emp_id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
+        // Validate password against the hash in the database
         if ($user && password_verify($password, $user['password'])) {
-            // Set session variables
+            // Set session variables for the application
             $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
             $_SESSION['emp_id'] = $user['emp_id']; 
-            $_SESSION['email'] = $user['email'];
             $_SESSION['role'] = $user['role'];
             $_SESSION['employee_id'] = $user['employee_id'];
             
-            // Handle cases where Admin has no profile in employees table
+            // Set a display name for the dashboard
             if (!empty($user['first_name'])) {
                 $_SESSION['full_name'] = $user['first_name'] . ' ' . $user['last_name'];
             } else {
-                $_SESSION['full_name'] = $user['username']; // Fallback for Admin
+                // Fallback: If no name exists (like for Admin), use the ID
+                $_SESSION['full_name'] = $user['emp_id']; 
             }
             
             return true;
@@ -45,15 +49,20 @@ class Auth {
         return false;
     }
     
-    public function register($username, $email, $password, $emp_id, $role = 'employee') {
+    /**
+     * Updated Register function: Removed the username requirement.
+     */
+    public function register($email, $password, $emp_id, $role = 'employee') {
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
         
-        $query = "INSERT INTO users (username, email, password, emp_id, role) VALUES (?, ?, ?, ?, ?)";
+        // Removed 'username' from the columns and values
+        $query = "INSERT INTO users (email, password, emp_id, role) VALUES (?, ?, ?, ?)";
         $stmt = $this->conn->prepare($query);
         
         try {
-            return $stmt->execute([$username, $email, $hashedPassword, $emp_id, $role]);
+            return $stmt->execute([$email, $hashedPassword, $emp_id, $role]);
         } catch (PDOException $e) {
+            // In case of duplicate email or emp_id
             return false;
         }
     }

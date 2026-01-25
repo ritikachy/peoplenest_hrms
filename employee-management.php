@@ -2,6 +2,7 @@
 require_once 'config/session.php';
 requireAdmin();
 require_once 'config/database.php';
+require_once 'mailer_logic.php';
 
 $database = new Database();
 $conn = $database->getConnection();
@@ -41,21 +42,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $conn->beginTransaction();
 
-                    $cleanUsername = strtolower(trim($_POST['first_name'] . $_POST['last_name']));
-                    $hashedPassword = password_hash($_POST['password'], PASSWORD_DEFAULT);
+                    $firstName = $_POST['first_name'];
+                    $lastName = $_POST['last_name'];
+                    $userEmail = $_POST['email'];
+                    $rawPassword = $_POST['password']; // Save this for the email
+                    $cleanUsername = strtolower(trim($firstName . $lastName));
+                    $hashedPassword = password_hash($rawPassword, PASSWORD_DEFAULT);
                     
                     // 1. Create User Account
                     $userQuery = "INSERT INTO users (username, email, password, emp_id, role) VALUES (?, ?, ?, ?, 'employee')";
                     $userStmt = $conn->prepare($userQuery);
-                    $userStmt->execute([$cleanUsername, $_POST['email'], $hashedPassword, $_POST['employee_id']]);
+                    $userStmt->execute([$cleanUsername, $userEmail, $hashedPassword, $_POST['employee_id']]);
                     $user_primary_id = $conn->lastInsertId();
                 
                     // 2. Create Employee Profile
                     $empQuery = "INSERT INTO employees (user_id, employee_id, first_name, last_name, email, phone, department, designation, hire_date, salary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                     $empStmt = $conn->prepare($empQuery);
                     $empStmt->execute([
-                        $user_primary_id, $_POST['employee_id'], $_POST['first_name'], $_POST['last_name'], 
-                        $_POST['email'], $_POST['phone'], $_POST['department'], 
+                        $user_primary_id, $_POST['employee_id'], $firstName, $lastName, 
+                        $userEmail, $_POST['phone'], $_POST['department'], 
                         $_POST['designation'], $_POST['hire_date'], $_POST['salary']
                     ]);
                     $internal_emp_id = $conn->lastInsertId(); 
@@ -70,6 +75,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $updateCandidate->execute([$candidate_id]);
                     }
                 
+                    // 4. SEND WELCOME EMAIL
+                    $subject = "Welcome to PeopleNest, " . $firstName . "!";
+                    $message = "
+                        <h2>Welcome to the Team!</h2>
+                        <p>Hi " . $firstName . ", we are excited to have you join our " . $_POST['department'] . " department.</p>
+                        <p><strong>Your Login Credentials:</strong><br>
+                        Username: " . $cleanUsername . "<br>
+                        Password: " . $rawPassword . "</p>
+                        <p>Please log in to the portal to view your dashboard.</p>
+                    ";
+                    
+                    sendCandidateEmail($userEmail, $firstName . " " . $lastName, $subject, $message);
+
                     $conn->commit();
                     header("Location: employee-management.php?msg=added");
                     exit();
@@ -79,7 +97,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = "Failed to create employee: " . $e->getMessage();
                 }
                 break;
-            
             case 'update':
                 try {
                     $conn->beginTransaction(); 
