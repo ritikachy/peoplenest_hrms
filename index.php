@@ -24,7 +24,7 @@ try {
 
     // Stats
     $emp_count = $conn->query("SELECT COUNT(*) FROM employees WHERE status = 'active'")->fetchColumn();
-    $pos_count = $conn->query("SELECT COUNT(DISTINCT position) FROM candidates WHERE status = 'pending'")->fetchColumn();
+    $pos_count = $conn->query("SELECT COUNT(*) FROM job_postings WHERE status = 'active'")->fetchColumn();
     $dept_count = $conn->query("SELECT COUNT(DISTINCT department) FROM employees")->fetchColumn();
 } catch (PDOException $e) {
     // Fallback if tables don't exist yet
@@ -112,6 +112,27 @@ try {
         .newsletter button { background: var(--pn-green); color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-weight: 700; cursor: pointer; }
 
         .footer-bottom { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 30px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; }
+    /* Add this inside your <style> tag */
+@media (max-width: 992px) {
+    .stats-grid { 
+        grid-template-columns: repeat(3, 1fr); 
+        margin: -50px 4% 0; 
+    }
+    .hero h1 { font-size: 3rem; }
+}
+
+@media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .features { grid-template-columns: 1fr; }
+    .footer-main { grid-template-columns: 1fr 1fr; }
+    .nav-links { display: none; } /* Consider a hamburger menu later */
+}
+
+@media (max-width: 480px) {
+    .stats-grid { grid-template-columns: 1fr; }
+    .stat-card { border-right: none; border-bottom: 1px solid var(--pn-border); padding-bottom: 15px; }
+    .stat-card:last-child { border-bottom: none; }
+}
     </style>
 </head>
 <body>
@@ -132,11 +153,11 @@ try {
     <div class="badge">
         <i class="fas fa-shield-check"></i> <?php echo $recruitment_open ? "Now Hiring: $pos_count Active Roles" : "Trusted by $emp_count Professionals"; ?>
     </div>
-    <h1>The Intelligently Simple <br> <span style="color: var(--pn-green)">HR Platform</span></h1>
+    <h1>The Effortlessly Simple <br> <span style="color: var(--pn-green)">HR Platform</span></h1>
     <p>We’ve combined powerful performance insights with a clean interface to help you manage your team without the stress.</p>
     <div style="display: flex; justify-content: center; gap: 15px;">
-        <a href="apply.php" class="btn-primary">Explore Careers <i class="fas fa-arrow-right" style="margin-left: 10px;"></i></a>
-        <a href="login.php" class="btn-login" style="padding: 14px 30px;">Request Demo</a>
+        <a href="careers.php" class="btn-primary">Explore Careers <i class="fas fa-arrow-right" style="margin-left: 10px;"></i></a>
+        <a href="login.php" class="btn-login" style="padding: 14px 30px;">staff login</a>
     </div>
 </section>
 

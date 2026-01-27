@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jan 25, 2026 at 03:28 AM
+-- Generation Time: Jan 27, 2026 at 04:58 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -46,7 +46,7 @@ CREATE TABLE `attendance` (
 --
 
 INSERT INTO `attendance` (`id`, `employee_id`, `date`, `status`, `check_in_time`, `latitude`, `longitude`, `check_out_time`, `notes`, `created_by`, `created_at`) VALUES
-(6, 12, '2026-01-16', 'present', '13:53:54', NULL, NULL, '13:58:34', NULL, NULL, '2026-01-16 12:53:54'),
+(6, 12, '2026-01-16', 'present', '13:53:54', NULL, NULL, '05:58:34', '', NULL, '2026-01-16 12:53:54'),
 (7, 12, '2026-01-17', 'present', '04:44:42', NULL, NULL, '05:51:04', '', NULL, '2026-01-17 03:44:42'),
 (9, 15, '2026-01-17', 'present', '11:30:19', 26.49113917, 87.29222967, '20:20:29', ' i need to live early so', NULL, '2026-01-17 05:45:19'),
 (10, 10, '2026-01-17', 'present', '20:25:49', 26.49121433, 87.29216933, '20:26:21', 'wwergtbf', NULL, '2026-01-17 14:40:49'),
@@ -57,12 +57,13 @@ INSERT INTO `attendance` (`id`, `employee_id`, `date`, `status`, `check_in_time`
 (24, 10, '2026-01-20', '', '14:37:20', NULL, NULL, '14:42:06', 'i havr work\r\n', NULL, '2026-01-20 08:52:20'),
 (25, 12, '2026-01-21', '', '07:26:33', 26.49136346, 87.29262550, '04:13:00', '', NULL, '2026-01-21 01:41:33'),
 (26, 16, '2026-01-21', 'present', '15:28:12', 0.00000000, 0.00000000, '17:18:00', '', NULL, '2026-01-21 09:43:12'),
-(27, 12, '2026-01-23', '', '11:52:38', 0.00000000, 0.00000000, NULL, NULL, NULL, '2026-01-23 06:07:38'),
-(29, 12, '2026-01-22', '', NULL, NULL, NULL, NULL, NULL, NULL, '2026-01-24 12:29:09'),
-(31, 12, '2026-01-24', '', NULL, NULL, NULL, NULL, NULL, NULL, '2026-01-24 12:29:40'),
-(32, 10, '2026-01-19', '', NULL, NULL, NULL, NULL, NULL, NULL, '2026-01-24 12:29:45'),
-(34, 10, '2026-01-21', '', NULL, NULL, NULL, NULL, NULL, NULL, '2026-01-24 12:29:45'),
-(35, 12, '2026-01-25', 'leave', NULL, NULL, NULL, NULL, NULL, NULL, '2026-01-24 14:08:27');
+(27, 12, '2026-01-23', '', '11:52:38', 0.00000000, 0.00000000, '05:45:00', '', NULL, '2026-01-23 06:07:38'),
+(29, 12, '2026-01-22', 'present', NULL, NULL, NULL, '17:00:00', NULL, NULL, '2026-01-24 12:29:09'),
+(31, 12, '2026-01-24', 'present', NULL, NULL, NULL, '17:00:00', NULL, NULL, '2026-01-24 12:29:40'),
+(32, 10, '2026-01-19', 'present', NULL, NULL, NULL, '17:00:00', NULL, NULL, '2026-01-24 12:29:45'),
+(34, 10, '2026-01-21', 'present', NULL, NULL, NULL, '17:00:00', NULL, NULL, '2026-01-24 12:29:45'),
+(35, 12, '2026-01-25', 'present', NULL, NULL, NULL, '17:00:00', NULL, NULL, '2026-01-24 14:08:27'),
+(36, 10, '2026-01-26', 'present', '11:45:19', 0.00000000, 0.00000000, '05:46:00', '', NULL, '2026-01-26 06:00:19');
 
 -- --------------------------------------------------------
 
@@ -100,7 +101,9 @@ INSERT INTO `candidates` (`id`, `name`, `email`, `phone`, `position`, `experienc
 (8, 'Sudip Thapa', 'sudip567@peoplenest.com', '9856712467', 'manager', 3, 'assets/uploads/resumes/1768317475_UNIT_5_FUNDAMENTALS_OF_CYBERSECURITY.pdf', 'selected', NULL, NULL, NULL, '2026-01-13 15:17:55', '2026-01-14 05:46:55'),
 (9, 'Hari Kumar', 'hari354@peoplenest.com', '9846732460', 'junior accountant', 2, 'assets/uploads/resumes/1768547527_Unit_2___Ethics_for_IT_Workers_and_IT_Users.pdf', 'interview_scheduled', '2026-01-24 18:16:00', NULL, NULL, '2026-01-16 07:12:07', '2026-01-22 12:31:42'),
 (11, 'asds', 'niroula.kushal@gmail.com', '3453456734', 'sdf', 3, 'assets/uploads/resumes/1769147630_NagarYatra___Shibu.pdf', 'interview_scheduled', '2026-01-25 11:39:00', NULL, NULL, '2026-01-23 05:53:50', '2026-01-23 05:54:54'),
-(12, 'meera', 'ritikachy231@gmail.com', '9800000032', 'junior accountant', 3, 'assets/uploads/resumes/1769179737_BIM_6th_Semester_Syllabus_2024.pdf', '', '2026-01-24 20:36:00', NULL, NULL, '2026-01-23 14:48:57', '2026-01-23 15:33:26');
+(12, 'meera', 'ritikachy231@gmail.com', '9800000032', 'junior accountant', 3, 'assets/uploads/resumes/1769179737_BIM_6th_Semester_Syllabus_2024.pdf', '', '2026-01-24 20:36:00', NULL, NULL, '2026-01-23 14:48:57', '2026-01-23 15:33:26'),
+(13, 'Hira khan', 'ritikachy231@gmail.com', '9867543290', 'marketing', 1, 'assets/uploads/resumes/1769395813_BIM_6th_Semester_Syllabus_2024.pdf', 'rejected', NULL, NULL, NULL, '2026-01-26 02:50:13', '2026-01-26 02:50:53'),
+(14, 'bhumika', 'sthachauli07@gmail.com', '56465476576', 'it', 5, 'assets/uploads/resumes/1769413594_BIM_6th_Semester_Syllabus_2024.pdf', 'interview_scheduled', '2026-01-28 15:34:00', NULL, NULL, '2026-01-26 07:46:34', '2026-01-26 07:47:09');
 
 -- --------------------------------------------------------
 
@@ -149,7 +152,9 @@ INSERT INTO `communication_logs` (`id`, `recipient_email`, `candidate_name`, `su
 (1, 'hari354@peoplenest.com', 'Hari Kumar', 'Application Status Update', 'Your application status has been updated to: Interview Scheduled. Your interview is set for 2026-01-24T18:16', '2026-01-22 12:31:42'),
 (2, 'niroula.kushal@gmail.com', 'asds', 'Application Status Update', 'Your application status has been updated to: Interview Scheduled. Your interview is set for 2026-01-25T11:39', '2026-01-23 05:54:54'),
 (3, 'ritikachy231@gmail.com', 'meera', 'Application Status Update', 'Your application status has been updated to: Interview Scheduled. Your interview is set for 2026-01-24T20:36', '2026-01-23 14:51:12'),
-(4, 'ritikachy231@gmail.com', 'meera', 'Application Status Update', 'Your application status for junior accountant has been updated to: Selected', '2026-01-23 15:26:27');
+(4, 'ritikachy231@gmail.com', 'meera', 'Application Status Update', 'Your application status for junior accountant has been updated to: Selected', '2026-01-23 15:26:27'),
+(5, 'ritikachy231@gmail.com', 'Hira khan', 'Update regarding your application at PeopleNest', 'Dear Hira khan, thank you for applying for the marketing position. After careful consideration, we have decided to move forward with other candidates at this time.', '2026-01-26 02:50:53'),
+(6, 'sthachauli07@gmail.com', 'bhumika', 'Interview Scheduled - PeopleNest', 'Great news! Your interview for the it position is set for 2026-01-28T15:34.', '2026-01-26 07:47:09');
 
 -- --------------------------------------------------------
 
@@ -193,6 +198,29 @@ INSERT INTO `employees` (`id`, `user_id`, `employee_id`, `first_name`, `last_nam
 (15, 14, 'Emp110', 'Mansi', 'Thapa', 20, 'mansi034@peoplenest.com', '9801124367', 'IT', 'marketing', '2026-01-13', NULL, 'active', '2026-01-13 06:59:30', '2026-01-13 06:59:30', 10, 7, 15, 90, 3),
 (16, 15, 'Emp111', 'Ram', 'Kumar', 17, 'Ram342@peoplenest.com', '982146718', 'IT', 'operation', '2026-01-13', NULL, 'active', '2026-01-13 12:28:21', '2026-01-19 05:16:09', 10, 7, 15, 90, 3),
 (17, 16, 'Emp112', 'meera', 'kapoor', 20, 'ritikachy231@gmail.com', '9800000032', 'IT', 'junior accountant', '2026-01-23', 50000.00, 'active', '2026-01-23 15:33:26', '2026-01-23 15:33:26', 10, 7, 15, 90, 3);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `job_postings`
+--
+
+CREATE TABLE `job_postings` (
+  `id` int(11) NOT NULL,
+  `position_name` varchar(100) NOT NULL,
+  `status` enum('active','inactive') DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `qualifications` text DEFAULT NULL,
+  `experience_required` varchar(255) DEFAULT NULL,
+  `job_description` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `job_postings`
+--
+
+INSERT INTO `job_postings` (`id`, `position_name`, `status`, `created_at`, `qualifications`, `experience_required`, `job_description`) VALUES
+(7, 'senior software engineer', 'active', '2026-01-26 13:06:47', 'B.Tech engineering', '4', '\"We are looking for a Senior Software Engineer to lead our development team. You will be responsible for designing high-quality software architecture, writing clean and scalable code, and mentoring junior developers. Key tasks include troubleshooting complex technical issues, collaborating with cross-functional teams to define project requirements, and ensuring our HR platform remains secure and efficient. The ideal candidate has strong problem-solving skills and a deep understanding of full-stack development.');
 
 -- --------------------------------------------------------
 
@@ -260,7 +288,8 @@ INSERT INTO `notifications` (`id`, `user_id`, `message`, `is_read`, `created_at`
 (8, 10, 'Your Casual request from 2026-01-23 has been APPROVED. ????', 0, '2026-01-24 12:29:40'),
 (9, 8, 'Your Sick request from 2026-01-19 has been APPROVED. ????', 0, '2026-01-24 12:29:45'),
 (10, 1, 'New Emergency leave request from Kim Jung (1 days).', 1, '2026-01-24 12:41:10'),
-(11, 10, 'Your Emergency leave request from 2026-01-25 has been APPROVED. ????', 0, '2026-01-24 14:08:27');
+(11, 10, 'Your Emergency leave request from 2026-01-25 has been APPROVED. ????', 0, '2026-01-24 14:08:27'),
+(12, 1, 'New Unpaid request from Kim Jung (1 Days).', 1, '2026-01-26 10:12:02');
 
 -- --------------------------------------------------------
 
@@ -355,6 +384,12 @@ ALTER TABLE `employees`
   ADD KEY `user_id` (`user_id`);
 
 --
+-- Indexes for table `job_postings`
+--
+ALTER TABLE `job_postings`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `leave_requests`
 --
 ALTER TABLE `leave_requests`
@@ -390,13 +425,13 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `attendance`
 --
 ALTER TABLE `attendance`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT for table `candidates`
 --
 ALTER TABLE `candidates`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `candidate_employee`
@@ -408,7 +443,7 @@ ALTER TABLE `candidate_employee`
 -- AUTO_INCREMENT for table `communication_logs`
 --
 ALTER TABLE `communication_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `employees`
@@ -417,16 +452,22 @@ ALTER TABLE `employees`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
+-- AUTO_INCREMENT for table `job_postings`
+--
+ALTER TABLE `job_postings`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
 -- AUTO_INCREMENT for table `leave_requests`
 --
 ALTER TABLE `leave_requests`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `users`
