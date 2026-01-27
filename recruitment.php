@@ -7,6 +7,27 @@ require_once 'mailer_logic.php';
 $database = new Database();
 $conn = $database->getConnection();
 
+// --- DATA FETCH FOR SUMMARY CARDS ---
+// 1. Total Apps
+$total_apps = $conn->query("SELECT COUNT(*) FROM candidates")->fetchColumn();
+
+// 2. Interviews Scheduled
+$interview_count = $conn->query("SELECT COUNT(*) FROM candidates WHERE status = 'interview_scheduled'")->fetchColumn();
+
+// 3. New Applicants (Pending)
+$new_count = $conn->query("SELECT COUNT(*) FROM candidates WHERE status = 'pending'")->fetchColumn();
+
+// 4. Selected Applicants
+$selected_count = $conn->query("SELECT COUNT(*) FROM candidates WHERE status = 'selected'")->fetchColumn();
+
+// 5. Applied This Month
+$month_count = $conn->query("SELECT COUNT(*) FROM candidates WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())")->fetchColumn();
+// ----------------------------------------
+
+// Fetch active jobs to populate the dropdowns in the modals
+$active_jobs_stmt = $conn->query("SELECT DISTINCT position_name FROM job_postings WHERE status = 'active' ORDER BY position_name ASC");
+$active_jobs = $active_jobs_stmt->fetchAll(PDO::FETCH_COLUMN);
+
 // Fetch current hiring status
 $status_stmt = $conn->query("SELECT setting_value FROM site_settings WHERE setting_key = 'recruitment_status'");
 $current_status = $status_stmt->fetchColumn();
@@ -23,7 +44,7 @@ if (isset($_POST['toggle_hiring'])) {
 // 1. HANDLE STATUS FILTERS
 $statusFilter = isset($_GET['status']) ? $_GET['status'] : null;
 
-// --- 2. HANDLE FORM SUBMISSIONS (CORRECTED) ---
+// --- 2. HANDLE FORM SUBMISSIONS ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
@@ -49,13 +70,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
                 $welcome_msg = "Hello " . $_POST['name'] . ", we have received your application for the " . $_POST['position'] . " position.";
                 
-                // Log and Send Email
                 $log_stmt = $conn->prepare("INSERT INTO communication_logs (recipient_email, candidate_name, subject, message) VALUES (?, ?, ?, ?)");
                 $log_stmt->execute([$_POST['email'], $_POST['name'], "Application Received", $welcome_msg]);
                 sendCandidateEmail($_POST['email'], $_POST['name'], "Application Received - PeopleNest", $welcome_msg);
         
                 $success = "Candidate added & Email Sent!";
-                break; // Properly end the 'add' case
+                break;
 
             case 'update':
                 $query = "UPDATE candidates SET name=?, email=?, phone=?, position=?, experience_years=?, status=?, interview_date=? WHERE id=?";
@@ -66,7 +86,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_POST['interview_date'] ?: null, $_POST['candidate_id']
                 ]);
         
-                // Prepare Dynamic Message based on Status
                 $candidate_name = $_POST['name'];
                 $candidate_email = $_POST['email'];
                 $position = $_POST['position'];
@@ -82,11 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $status_msg = "Your application status for $position has been updated to: " . ucwords(str_replace('_', ' ', $_POST['status']));
                 }
         
-                // 1. LOG TO DATABASE
                 $log_stmt = $conn->prepare("INSERT INTO communication_logs (recipient_email, candidate_name, subject, message) VALUES (?, ?, ?, ?)");
                 $log_stmt->execute([$candidate_email, $candidate_name, $subject, $status_msg]);
         
-                // 2. SEND REAL EMAIL
                 sendCandidateEmail($candidate_email, $candidate_name, $subject, $status_msg);
         
                 $success = "Status updated & Email Sent!";
@@ -94,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
 // 3. FETCH DATA
 $monthFilter = isset($_GET['filter']) && $_GET['filter'] === 'this_month';
 
@@ -128,87 +146,41 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <title>Recruitment - PeopleNest</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <style>
-    /* CRITICAL LAYOUT FIX */
-    .dashboard-layout {
-        display: flex;
-        width: 100%;
-        min-height: 100vh;
-    }
+    .dashboard-layout { display: flex; width: 100%; min-height: 100vh; }
+    .main-content { flex: 1; padding: 20px; background: #f8f9fa; min-width: 0; }
+    .table-container { width: 100%; overflow-x: auto; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 30px; }
+    .log-scroll-area { max-height: 450px; overflow-y: auto; border: 1px solid #eee; }
+    .table { width: 100%; border-collapse: collapse; min-width: 850px; }
+    .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; vertical-align: middle; }
+    .msg-cell { max-width: 300px; white-space: normal; word-wrap: break-word; line-height: 1.4; }
+    
+    /* Stats Card Styling - Updated for 5 items */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+    .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 5px solid #007bff; }
+    .stat-card.new { border-left-color: #ffc107; }
+    .stat-card.month { border-left-color: #6610f2; }
+    .stat-card.interviews { border-left-color: #17a2b8; }
+    .stat-card.selected { border-left-color: #28a745; }
+    
+    .stat-label { font-size: 11px; color: #666; text-transform: uppercase; font-weight: bold; }
+    .stat-value { font-size: 24px; font-weight: bold; color: #333; margin: 5px 0; }
 
-    .main-content {
-        flex: 1;
-        padding: 20px;
-        background: #f8f9fa;
-        min-width: 0;
-    }
-
-    .table-container {
-        width: 100%;
-        overflow-x: auto;
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        margin-bottom: 30px;
-    }
-
-    /* FIX FOR LONG LOGS: Scrollable area */
-    .log-scroll-area {
-        max-height: 450px; /* Limits height to ~6-7 rows */
-        overflow-y: auto;
-        border: 1px solid #eee;
-    }
-
-    .table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 850px;
-    }
-
-    .table th, .table td {
-        padding: 12px;
-        text-align: left;
-        border-bottom: 1px solid #eee;
-        vertical-align: middle;
-    }
-
-    .msg-cell {
-        max-width: 300px;
-        white-space: normal;
-        word-wrap: break-word;
-        line-height: 1.4;
-    }
-
-    /* Status Badges */
+    /* Badges */
     .badge-pending { background: #ffc107; color: #000; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
     .badge-interview_scheduled { background: #17a2b8; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
     .badge-selected { background: #28a745; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
     .badge-rejected { background: #dc3545; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
     
-    /* Filter Button Colors */
     .filter-group { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
-    .btn-filter-all { background: #6c757d !important; color: white !important; border: none; }
-    .btn-filter-new { background: #ffc107 !important; color: black !important; border: none; }
-    .btn-filter-month { background: #17a2b8 !important; color: white !important; border: none; }
-    .btn-filter-interviews { background: #007bff !important; color: white !important; border: none; }
-    .btn-filter-selected { background: #28a745 !important; color: white !important; border: none; }
-    .btn-filter-rejected { background: #dc3545 !important; color: white !important; border: none; }
+    .btn-filter-all { background: #6c757d !important; color: white !important; }
+    .btn-filter-new { background: #ffc107 !important; color: black !important; }
+    .btn-filter-month { background: #6610f2 !important; color: white !important; }
+    .btn-filter-interviews { background: #17a2b8 !important; color: white !important; }
+    .btn-filter-selected { background: #28a745 !important; color: white !important; }
+    .btn-filter-rejected { background: #dc3545 !important; color: white !important; }
 
-    .btn-sm { padding: 5px 10px; font-size: 12px; cursor: pointer; border-radius: 4px; text-decoration: none; display: inline-block; }
-    
-    .filter-group .btn:hover {
-        opacity: 0.9;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
-
-    .modal { 
-        display: none; 
-        position: fixed; 
-        z-index: 2000; 
-        left: 0; top: 0; 
-        width: 100%; height: 100%; 
-        background-color: rgba(0,0,0,0.5); 
-    }
+    .btn-sm { padding: 5px 10px; font-size: 12px; cursor: pointer; border-radius: 4px; text-decoration: none; display: inline-block; border: none; }
+    .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
     </style>
 </head>
 <body>
@@ -225,7 +197,6 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </button>
                     </form>
                     <button class="btn btn-primary btn-sm" onclick="openModal('addCandidateModal')">Add Candidate</button>
-                    <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
                 </div>
             </div>
 
@@ -233,96 +204,110 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php if (isset($success)): ?>
                     <div class="alert" style="padding:15px; background:#d4edda; color:#155724; border-radius:5px; margin-bottom:20px;"><?php echo $success; ?></div>
                 <?php endif; ?>
+
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Applied</div>
+                        <div class="stat-value"><?php echo $total_apps; ?></div>
+                    </div>
+                    <div class="stat-card new">
+                        <div class="stat-label">New (Pending)</div>
+                        <div class="stat-value"><?php echo $new_count; ?></div>
+                    </div>
+                    <div class="stat-card month">
+                        <div class="stat-label">This Month</div>
+                        <div class="stat-value"><?php echo $month_count; ?></div>
+                    </div>
+                    <div class="stat-card interviews">
+                        <div class="stat-label">Interviews</div>
+                        <div class="stat-value"><?php echo $interview_count; ?></div>
+                    </div>
+                    <div class="stat-card selected">
+                        <div class="stat-label">Selected</div>
+                        <div class="stat-value"><?php echo $selected_count; ?></div>
+                    </div>
+                </div>
                 
                 <div class="filter-group">
-                    <a href="recruitment.php" class="btn btn-filter-all btn-sm">All Applicants</a>
+                    <a href="recruitment.php" class="btn btn-filter-all btn-sm">All</a>
                     <a href="recruitment.php?status=pending" class="btn btn-filter-new btn-sm">New</a>
-                    <a href="recruitment.php?filter=this_month" class="btn btn-filter-month btn-sm">Applied This Month</a>
+                    <a href="recruitment.php?filter=this_month" class="btn btn-filter-month btn-sm">This Month</a>
                     <a href="recruitment.php?status=interview_scheduled" class="btn btn-filter-interviews btn-sm">Interviews</a>
                     <a href="recruitment.php?status=selected" class="btn btn-filter-selected btn-sm">Selected</a>
-                    <a href="recruitment.php?status=rejected" class="btn btn-filter-rejected btn-sm">Talent Bank (Rejected)</a>
+                    <a href="recruitment.php?status=rejected" class="btn btn-filter-rejected btn-sm">Rejected</a>
                 </div>
 
-                <div class="card">
-                    <div class="table-container">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Position</th>
-                                    <th>Exp</th>
-                                    <th>Status</th>
-                                    <th>Interview Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($candidates as $candidate): ?>
-                                <tr>
-                                    <td><strong><?php echo htmlspecialchars($candidate['name']); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($candidate['position']); ?></td>
-                                    <td><?php echo $candidate['experience_years']; ?> Yrs</td>
-                                    <td>
-                                        <span class="badge-<?php echo $candidate['status']; ?>">
-                                            <?php echo ucwords(str_replace('_', ' ', $candidate['status'])); ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo $candidate['interview_date'] ? date('M d, h:i A', strtotime($candidate['interview_date'])) : '-'; ?></td>
-                                    <td>
-                                        <div style="display: flex; gap: 5px;">
-                                            <?php if (!empty($candidate['resume_path'])): ?>
-                                                <a href="<?php echo htmlspecialchars($candidate['resume_path']); ?>" target="_blank" class="btn btn-info btn-sm" title="View Resume">📄 CV</a>
-                                            <?php endif; ?>
-                                            <button class="btn btn-secondary btn-sm" onclick='editCandidate(<?php echo json_encode($candidate); ?>)'>Edit</button>
-                                            <?php if($candidate['status'] == 'selected'): ?>
-                                                <a href="employee-management.php?hire_id=<?php echo $candidate['id']; ?>" class="btn btn-success btn-sm">Hire</a>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Position</th>
+                                <th>Exp</th>
+                                <th>Status</th>
+                                <th>Interview Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($candidates as $candidate): ?>
+                            <tr>
+                                <td><strong><?php echo htmlspecialchars($candidate['name']); ?></strong></td>
+                                <td><?php echo htmlspecialchars($candidate['position']); ?></td>
+                                <td><?php echo $candidate['experience_years']; ?> Yrs</td>
+                                <td>
+                                    <span class="badge-<?php echo $candidate['status']; ?>">
+                                        <?php echo ucwords(str_replace('_', ' ', $candidate['status'])); ?>
+                                    </span>
+                                </td>
+                                <td><?php echo $candidate['interview_date'] ? date('M d, h:i A', strtotime($candidate['interview_date'])) : '-'; ?></td>
+                                <td>
+                                    <div style="display: flex; gap: 5px;">
+                                        <?php if (!empty($candidate['resume_path'])): ?>
+                                            <a href="<?php echo htmlspecialchars($candidate['resume_path']); ?>" target="_blank" class="btn btn-info btn-sm">📄 CV</a>
+                                        <?php endif; ?>
+                                        <button class="btn btn-secondary btn-sm" onclick='editCandidate(<?php echo json_encode($candidate); ?>)'>Edit</button>
+                                        <?php if($candidate['status'] == 'selected'): ?>
+                                            <a href="employee-management.php?hire_id=<?php echo $candidate['id']; ?>" class="btn btn-success btn-sm">Hire</a>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
 
-                <div class="card" style="margin-top: 40px;">
+                <div class="card" style="margin-top: 20px;">
                     <div class="card-header" style="background: #343a40; color: white; padding: 12px; border-radius: 8px 8px 0 0;">
-                        <h3 style="margin:0; font-size: 16px;">Outgoing Notifications (Email Logs)</h3>
+                        <h3 style="margin:0; font-size: 15px;">Communication History</h3>
                     </div>
                     <div class="table-container">
-                        <div class="log-scroll-area"> <table class="table" style="font-size: 13px;">
-                                <thead style="position: sticky; top: 0; background: #f4f4f4; z-index: 10;">
+                        <div class="log-scroll-area"> 
+                            <table class="table" style="font-size: 13px;">
+                                <thead style="position: sticky; top: 0; background: #f4f4f4;">
                                     <tr>
                                         <th>Recipient</th>
                                         <th>Subject</th>
-                                        <th>Message Content</th>
+                                        <th>Message</th>
                                         <th>Sent At</th>
                                         <th>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php
-                                    // Increased limit to 20 since we now have a scrollbar
-                                    $logs_stmt = $conn->query("SELECT * FROM communication_logs ORDER BY sent_at DESC LIMIT 20");
+                                    $logs_stmt = $conn->query("SELECT * FROM communication_logs ORDER BY sent_at DESC LIMIT 15");
                                     $logs = $logs_stmt->fetchAll(PDO::FETCH_ASSOC);
-                                    
-                                    if (count($logs) > 0):
-                                        foreach ($logs as $log): ?>
-                                        <tr>
-                                            <td>
-                                                <strong><?php echo htmlspecialchars($log['candidate_name']); ?></strong><br>
-                                                <small style="color:#666;"><?php echo htmlspecialchars($log['recipient_email']); ?></small>
-                                            </td>
-                                            <td><?php echo htmlspecialchars($log['subject']); ?></td>
-                                            <td class="msg-cell"><?php echo htmlspecialchars($log['message']); ?></td>
-                                            <td><?php echo date('M d, H:i', strtotime($log['sent_at'])); ?></td>
-                                            <td><span class="badge-selected" style="background:#28a745;">✔ Delivered</span></td>
-                                        </tr>
-                                        <?php endforeach; 
-                                    else: ?>
-                                        <tr><td colspan="5" style="text-align:center;">No notifications sent yet.</td></tr>
-                                    <?php endif; ?>
+                                    foreach ($logs as $log): ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($log['candidate_name']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($log['subject']); ?></td>
+                                        <td class="msg-cell"><?php echo htmlspecialchars($log['message']); ?></td>
+                                        <td><?php echo date('M d, H:i', strtotime($log['sent_at'])); ?></td>
+                                        <td><span style="color:#28a745;">✔ Sent</span></td>
+                                    </tr>
+                                    <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
@@ -338,11 +323,17 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="add">
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div><label>Full Name</label><input type="text" name="name" required style="width:100%;"></div>
-                    <div><label>Email</label><input type="email" name="email" required style="width:100%;"></div>
-                    <div><label>Phone</label><input type="tel" name="phone" style="width:100%;"></div>
-                    <div><label>Position</label><input type="text" name="position" required style="width:100%;"></div>
-                    <div><label>Experience (Yrs)</label><input type="number" name="experience_years" style="width:100%;"></div>
+                    <div><label>Full Name</label><input type="text" name="name" required style="width:100%; padding:8px;"></div>
+                    <div><label>Email</label><input type="email" name="email" required style="width:100%; padding:8px;"></div>
+                    <div><label>Phone</label><input type="tel" name="phone" style="width:100%; padding:8px;"></div>
+                    <div><label>Position</label>
+                        <select name="position" required style="width:100%; padding: 8px;">
+                            <?php foreach ($active_jobs as $job): ?>
+                                <option value="<?php echo htmlspecialchars($job); ?>"><?php echo htmlspecialchars($job); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div><label>Experience (Yrs)</label><input type="number" name="experience_years" style="width:100%; padding:8px;"></div>
                     <div><label>CV (PDF)</label><input type="file" name="resume" accept=".pdf"></div>
                 </div>
                 <div style="margin-top:20px; text-align:right;">
@@ -355,16 +346,16 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <div id="editCandidateModal" class="modal">
         <div class="modal-content" style="background:white; margin: 5% auto; padding: 20px; width: 50%; border-radius:8px;">
-            <h3>Update Candidate</h3>
+            <h3>Update Candidate Status</h3>
             <form method="POST">
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" id="edit_candidate_id" name="candidate_id">
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div><label>Name</label><input type="text" id="edit_name" name="name" required style="width:100%;"></div>
-                    <div><label>Email</label><input type="email" id="edit_email" name="email" required style="width:100%;"></div>
-                    <div><label>Position</label><input type="text" id="edit_position" name="position" style="width:100%;"></div>
+                    <div><label>Name</label><input type="text" id="edit_name" name="name" required style="width:100%; padding:8px;"></div>
+                    <div><label>Email</label><input type="email" id="edit_email" name="email" required style="width:100%; padding:8px;"></div>
+                    <div><label>Position</label><input type="text" id="edit_position" name="position" style="width:100%; padding:8px;"></div>
                     <div><label>Status</label>
-                        <select id="edit_status" name="status" style="width:100%;">
+                        <select id="edit_status" name="status" style="width:100%; padding:8px;">
                             <option value="pending">Pending</option>
                             <option value="interview_scheduled">Interview Scheduled</option>
                             <option value="selected">Selected</option>
@@ -374,7 +365,7 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
                 <div style="margin-top:15px;">
                     <label>Interview Date & Time</label>
-                    <input type="datetime-local" id="edit_interview_date" name="interview_date" style="width:100%;">
+                    <input type="datetime-local" id="edit_interview_date" name="interview_date" style="width:100%; padding:8px;">
                 </div>
                 <input type="hidden" id="edit_phone" name="phone">
                 <input type="hidden" id="edit_experience" name="experience_years">
@@ -389,7 +380,6 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script>
         function openModal(modalId) { document.getElementById(modalId).style.display = "block"; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = "none"; }
-
         function editCandidate(data) {
             document.getElementById('edit_candidate_id').value = data.id;
             document.getElementById('edit_name').value = data.name;
@@ -398,17 +388,13 @@ $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
             document.getElementById('edit_status').value = data.status;
             document.getElementById('edit_phone').value = data.phone;
             document.getElementById('edit_experience').value = data.experience_years;
-            
             if(data.interview_date) {
                 document.getElementById('edit_interview_date').value = data.interview_date.replace(" ", "T").substring(0, 16);
             }
             openModal('editCandidateModal');
         }
-
         window.onclick = function(event) {
-            if (event.target.className === 'modal') {
-                event.target.style.display = "none";
-            }
+            if (event.target.className === 'modal') { event.target.style.display = "none"; }
         }
     </script>
 </body>
